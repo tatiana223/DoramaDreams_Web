@@ -9,9 +9,12 @@ import java.util.List;
 
 @Mapper(componentModel = "spring")
 public interface UserMapper {
+
+    @Mapping(target = "password", ignore = true)
     UserDto toDto(User user);
 
-    @Mapping(source = "password", target = "passwordHash")
+    @Mapping(target = "passwordHash", ignore = true)
+    @Mapping(target = "registrationDate", ignore = true)
     User toEntity(UserDto dto);
 
     List<UserDto> toDtoList(List<User> users);

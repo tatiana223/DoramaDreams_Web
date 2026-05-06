@@ -1,0 +1,742 @@
+openapi: 3.0.3
+info:
+  title: DoramaDreams API
+  description: REST API для веб-системы рекомендаций дорам.
+  version: 1.0.0
+
+servers:
+  - url: http://localhost:8080
+    description: Локальный сервер разработки
+
+tags:
+  - name: Users
+    description: Пользователи
+  - name: Doramas
+    description: Каталог дорам
+  - name: Genres
+    description: Жанры
+  - name: Actors
+    description: Актёры
+  - name: Favorites
+    description: Избранное
+  - name: Ratings
+    description: Оценки
+  - name: Reviews
+    description: Отзывы
+  - name: Watch History
+    description: История просмотра
+  - name: Recommendations
+    description: Персональные рекомендации
+
+paths:
+  /api/users:
+    get:
+      tags:
+        - Users
+      summary: Получить список пользователей
+      operationId: getAllUsers
+      responses:
+        '200':
+          description: Успешный ответ
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/UserDto'
+
+  /api/users/register:
+    post:
+      tags:
+        - Users
+      summary: Зарегистрировать пользователя
+      operationId: registerUser
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserDto'
+      responses:
+        '200':
+          description: Пользователь зарегистрирован
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserDto'
+
+  /api/users/{id}:
+    get:
+      tags:
+        - Users
+      summary: Получить пользователя по ID
+      operationId: getUserById
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: ID пользователя
+          schema:
+            type: integer
+            format: int64
+      responses:
+        '200':
+          description: Успешный ответ
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserDto'
+
+  /api/users/search/username:
+    get:
+      tags:
+        - Users
+      summary: Найти пользователя по имени
+      operationId: getUserByUsername
+      parameters:
+        - name: username
+          in: query
+          required: true
+          description: Имя пользователя
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Успешный ответ
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserDto'
+
+  /api/users/search/email:
+    get:
+      tags:
+        - Users
+      summary: Найти пользователя по email
+      operationId: getUserByEmail
+      parameters:
+        - name: email
+          in: query
+          required: true
+          description: Email пользователя
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Успешный ответ
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserDto'
+
+  /api/doramas:
+    get:
+      tags:
+        - Doramas
+      summary: Получить список дорам
+      operationId: getAllDoramas
+      responses:
+        '200':
+          description: Успешный ответ
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/DoramaDto'
+
+  /api/doramas/{id}:
+    get:
+      tags:
+        - Doramas
+      summary: Получить дораму по ID
+      operationId: getDoramaById
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: ID дорамы
+          schema:
+            type: integer
+            format: int64
+      responses:
+        '200':
+          description: Успешный ответ
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DoramaDto'
+
+  /api/doramas/search/name:
+    get:
+      tags:
+        - Doramas
+      summary: Найти дораму по названию
+      operationId: getDoramaByName
+      parameters:
+        - name: name
+          in: query
+          required: true
+          description: Название дорамы
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Успешный ответ
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DoramaDto'
+
+  /api/doramas/search/genres:
+    get:
+      tags:
+        - Doramas
+      summary: Найти дорамы по жанру
+      operationId: getDoramasByGenre
+      parameters:
+        - name: genres
+          in: query
+          required: true
+          description: Название жанра
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Успешный ответ
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/DoramaDto'
+
+  /api/genres:
+    get:
+      tags:
+        - Genres
+      summary: Получить список жанров
+      operationId: getAllGenres
+      responses:
+        '200':
+          description: Успешный ответ
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/GenreDto'
+
+  /api/actors:
+    get:
+      tags:
+        - Actors
+      summary: Получить список актёров
+      operationId: getAllActors
+      responses:
+        '200':
+          description: Успешный ответ
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ActorDto'
+
+  /api/actors/{id}:
+    get:
+      tags:
+        - Actors
+      summary: Получить актёра по ID
+      operationId: getActorById
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: ID актёра
+          schema:
+            type: integer
+            format: int64
+      responses:
+        '200':
+          description: Успешный ответ
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ActorDto'
+
+  /api/actors/search/fullName:
+    get:
+      tags:
+        - Actors
+      summary: Найти актёра по ФИО
+      operationId: getActorByFullName
+      parameters:
+        - name: fullName
+          in: query
+          required: true
+          description: Полное имя актёра
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Успешный ответ
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ActorDto'
+
+  /api/favorites/user/{userId}:
+    get:
+      tags:
+        - Favorites
+      summary: Получить избранные дорамы пользователя
+      operationId: getUserFavorites
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          description: ID пользователя
+          schema:
+            type: integer
+            format: int64
+      responses:
+        '200':
+          description: Успешный ответ
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/DoramaDto'
+
+  /api/favorites/{userId}/{doramaId}:
+    post:
+      tags:
+        - Favorites
+      summary: Добавить дораму в избранное
+      operationId: addFavorite
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          description: ID пользователя
+          schema:
+            type: integer
+            format: int64
+        - name: doramaId
+          in: path
+          required: true
+          description: ID дорамы
+          schema:
+            type: integer
+            format: int64
+      responses:
+        '200':
+          description: Добавлено в избранное
+
+    delete:
+      tags:
+        - Favorites
+      summary: Удалить дораму из избранного
+      operationId: removeFavorite
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          description: ID пользователя
+          schema:
+            type: integer
+            format: int64
+        - name: doramaId
+          in: path
+          required: true
+          description: ID дорамы
+          schema:
+            type: integer
+            format: int64
+      responses:
+        '204':
+          description: Удалено из избранного
+
+  /api/ratings:
+    post:
+      tags:
+        - Ratings
+      summary: Добавить оценку
+      operationId: addRating
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RatingDto'
+      responses:
+        '200':
+          description: Оценка добавлена
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RatingDto'
+
+  /api/ratings/dorama/{id}:
+    get:
+      tags:
+        - Ratings
+      summary: Получить оценки дорамы
+      operationId: getRatingsByDorama
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: ID дорамы
+          schema:
+            type: integer
+            format: int64
+      responses:
+        '200':
+          description: Успешный ответ
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/RatingDto'
+
+  /api/reviews/add:
+    post:
+      tags:
+        - Reviews
+      summary: Добавить отзыв
+      operationId: addReview
+      parameters:
+        - name: userId
+          in: query
+          required: true
+          description: ID пользователя
+          schema:
+            type: integer
+        - name: doramaId
+          in: query
+          required: true
+          description: ID дорамы
+          schema:
+            type: integer
+        - name: content
+          in: query
+          required: true
+          description: Текст отзыва
+          schema:
+            type: string
+        - name: rating
+          in: query
+          required: true
+          description: Оценка
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Отзыв добавлен
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReviewDto'
+
+  /api/reviews/dorama/{doramaId}:
+    get:
+      tags:
+        - Reviews
+      summary: Получить отзывы по дораме
+      operationId: getReviewsByDorama
+      parameters:
+        - name: doramaId
+          in: path
+          required: true
+          description: ID дорамы
+          schema:
+            type: integer
+            format: int64
+      responses:
+        '200':
+          description: Успешный ответ
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ReviewDto'
+
+  /api/history/user/{userId}:
+    get:
+      tags:
+        - Watch History
+      summary: Получить историю просмотра пользователя
+      operationId: getUserHistory
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          description: ID пользователя
+          schema:
+            type: integer
+            format: int64
+      responses:
+        '200':
+          description: Успешный ответ
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/WatchHistoryDto'
+
+  /api/history/add:
+    post:
+      tags:
+        - Watch History
+      summary: Добавить или обновить прогресс просмотра
+      operationId: addOrUpdateWatchHistory
+      parameters:
+        - name: userId
+          in: query
+          required: true
+          description: ID пользователя
+          schema:
+            type: integer
+        - name: doramaId
+          in: query
+          required: true
+          description: ID дорамы
+          schema:
+            type: integer
+        - name: episode
+          in: query
+          required: false
+          description: Последняя просмотренная серия
+          schema:
+            type: integer
+            default: 1
+        - name: status
+          in: query
+          required: false
+          description: Статус просмотра
+          schema:
+            type: string
+            default: WATCHING
+      responses:
+        '200':
+          description: История просмотра обновлена
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WatchHistoryDto'
+
+  /api/recommendations/{userId}:
+    get:
+      tags:
+        - Recommendations
+      summary: Получить персональные рекомендации
+      operationId: getRecommendations
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          description: ID пользователя
+          schema:
+            type: integer
+            format: int64
+      responses:
+        '200':
+          description: Успешный ответ
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/DoramaDto'
+
+components:
+  schemas:
+    UserDto:
+      type: object
+      properties:
+        userId:
+          type: integer
+          format: int64
+          readOnly: true
+        username:
+          type: string
+          example: tatiana
+        email:
+          type: string
+          format: email
+          example: tatiana@example.com
+        password:
+          type: string
+          format: password
+          writeOnly: true
+          example: password123
+      required:
+        - username
+        - email
+        - password
+
+    DoramaDto:
+      type: object
+      properties:
+        doramaId:
+          type: integer
+          format: int64
+        title:
+          type: string
+          example: Crash Landing on You
+        originalTitle:
+          type: string
+        description:
+          type: string
+        releaseYear:
+          type: integer
+          example: 2019
+        posterUrl:
+          type: string
+          format: uri
+        averageRating:
+          type: number
+          format: double
+          example: 8.7
+        genres:
+          type: array
+          items:
+            type: string
+          example:
+            - романтика
+            - драма
+
+    GenreDto:
+      type: object
+      properties:
+        genreId:
+          type: integer
+          format: int64
+        name:
+          type: string
+          example: драма
+
+    ActorDto:
+      type: object
+      properties:
+        actorId:
+          type: integer
+          format: int64
+        fullName:
+          type: string
+          example: Son Ye-jin
+        photoUrl:
+          type: string
+          format: uri
+        biography:
+          type: string
+
+    FavoriteDto:
+      type: object
+      properties:
+        favoriteId:
+          type: integer
+          format: int64
+        userId:
+          type: integer
+          format: int64
+        doramaId:
+          type: integer
+          format: int64
+        doramaTitle:
+          type: string
+        posterUrl:
+          type: string
+          format: uri
+
+    RatingDto:
+      type: object
+      properties:
+        ratingId:
+          type: integer
+          format: int64
+          readOnly: true
+        userId:
+          type: integer
+          format: int64
+        username:
+          type: string
+          readOnly: true
+        doramaId:
+          type: integer
+          format: int64
+        doramaTitle:
+          type: string
+          readOnly: true
+        score:
+          type: integer
+          minimum: 1
+          maximum: 10
+          example: 9
+        comment:
+          type: string
+          example: Очень понравилось
+      required:
+        - userId
+        - doramaId
+        - score
+
+    ReviewDto:
+      type: object
+      properties:
+        reviewId:
+          type: integer
+          format: int64
+        username:
+          type: string
+        content:
+          type: string
+        rating:
+          type: integer
+          minimum: 1
+          maximum: 10
+        createdAt:
+          type: string
+          format: date-time
+
+    WatchHistoryDto:
+      type: object
+      properties:
+        userId:
+          type: integer
+          format: int64
+        doramaId:
+          type: integer
+          format: int64
+        doramaTitle:
+          type: string
+        lastEpisode:
+          type: integer
+          example: 3
+        status:
+          type: string
+          example: WATCHING
+        updatedAt:
+          type: string
+          format: date-time
+
+    ErrorResponse:
+      type: object
+      properties:
+        timestamp:
+          type: string
+          format: date-time
+        status:
+          type: integer
+        error:
+          type: string
+        message:
+          type: string
+        path:
+          type: string

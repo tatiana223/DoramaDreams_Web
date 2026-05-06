@@ -9,6 +9,7 @@ import java.util.List;
 
 @Mapper(componentModel = "spring")
 public interface RatingMapper {
+
     @Mapping(source = "user.userId", target = "userId")
     @Mapping(source = "user.username", target = "username")
     @Mapping(source = "dorama.doramaId", target = "doramaId")
@@ -18,5 +19,6 @@ public interface RatingMapper {
     @Mapping(target = "user", ignore = true)
     @Mapping(target = "dorama", ignore = true)
     Rating toEntity(RatingDto ratingDto);
-    List<RatingDto> toDtoList(List<Rating> rating);
+
+    List<RatingDto> toDtoList(List<Rating> ratings);
 }
