@@ -4,7 +4,12 @@ import jakarta.persistence.*;
 import lombok.Data;
 
 @Entity
-@Table(name = "ratings")
+@Table(
+        name = "ratings",
+        uniqueConstraints = {
+                @UniqueConstraint(columnNames = {"user_id", "dorama_id"})
+        }
+)
 @Data
 public class Rating {
     @Id
@@ -21,6 +26,4 @@ public class Rating {
 
     @Column(nullable = false)
     private Integer score; // Оценка от 1 до 10
-
-    private String comment;
 }

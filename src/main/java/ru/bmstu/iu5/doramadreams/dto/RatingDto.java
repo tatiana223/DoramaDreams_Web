@@ -10,5 +10,4 @@ public class RatingDto {
     private Long doramaId;
     private String doramaTitle;
     private Integer score;
-    private String comment;
 }

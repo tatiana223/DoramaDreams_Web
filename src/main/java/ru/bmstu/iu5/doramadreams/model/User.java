@@ -24,5 +24,10 @@ public class User {
     @Column(nullable = false)
     private String passwordHash;
 
+    @Column(name = "registration_date")
     private LocalDateTime registrationDate = LocalDateTime.now();
+
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
+    private UserRole role = UserRole.USER;
 }
