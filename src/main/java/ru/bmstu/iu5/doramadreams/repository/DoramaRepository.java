@@ -24,12 +24,12 @@ public interface DoramaRepository extends JpaRepository<Dorama, Long> {
     List<Dorama> findByGenres_NameIgnoreCase(String genreName);
 
     boolean existsByTitleIgnoreCase(String title);
-
+    boolean existsByTmdbId(Integer tmdbId);
     @Query("""
-    SELECT d FROM Dorama d
+    SELECT DISTINCT d FROM Dorama d
     LEFT JOIN d.genres g
-    WHERE (:title IS NULL OR LOWER(d.title) LIKE LOWER(CONCAT('%', :title, '%')))
-    AND (:genre IS NULL OR LOWER(g.name) = LOWER(:genre))
+    WHERE (:title IS NULL OR LOWER(d.title) LIKE :title)
+    AND (:genre IS NULL OR LOWER(g.name) = :genre)
     AND (:releaseYear IS NULL OR d.releaseYear = :releaseYear)
     """)
     List<Dorama> searchDoramas(

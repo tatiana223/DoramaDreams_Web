@@ -13,6 +13,9 @@ import java.util.Set;
 public interface DoramaMapper {
 
     @Mapping(target = "genres", source = "genres")
+    @Mapping(target = "countryId", source = "country.countryId")
+    @Mapping(target = "countryName", source = "country.name")
+    @Mapping(target = "countryIsoCode", source = "country.isoCode")
     DoramaDto toDto(Dorama dorama);
 
     @Mapping(target = "genres", ignore = true)

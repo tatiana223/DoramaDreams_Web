@@ -19,8 +19,19 @@ spring:
 
 springdoc:
   swagger-ui:
-    url: /openapi.yaml
     path: /swagger-ui.html
+  api-docs:
+    path: /v3/api-docs
+    
+tmdb:
+  api-key: ca1df7f89eebfe030f2f574f3b814ef8
+
+minio:
+  endpoint: http://localhost:9000
+  access-key: admin
+  secret-key: password123
+  bucket: doramas
+  public-url: http://localhost:9000
 
 server:
   port: 8080

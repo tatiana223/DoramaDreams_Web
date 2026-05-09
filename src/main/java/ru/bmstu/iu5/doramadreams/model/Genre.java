@@ -12,6 +12,9 @@ public class Genre {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long genreId;
 
+    @Column(name = "tmdb_id", unique = true)
+    private Integer tmdbId;
+
     @Column(unique = true, nullable = false)
     private String name;
 }

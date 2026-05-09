@@ -50,7 +50,9 @@ public class SecurityConfig {
 
                         // Swagger
                         .requestMatchers(
+                                "/swagger-ui.html",
                                 "/swagger-ui/**",
+                                "/v3/api-docs",
                                 "/v3/api-docs/**",
                                 "/openapi.yaml"
                         ).permitAll()
@@ -72,6 +74,9 @@ public class SecurityConfig {
                                 "/api/reviews/dorama/**",
                                 "/api/reviews/search"
                         ).permitAll()
+
+                        .requestMatchers("/api/admin/tmdb/**").permitAll()
+                        .requestMatchers("/api/admin/posters/import").permitAll()
 
                         // Everything else requires authorization
                         .anyRequest().authenticated()

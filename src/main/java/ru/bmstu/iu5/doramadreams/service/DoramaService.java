@@ -136,9 +136,28 @@ public class DoramaService {
     }
 
     public List<DoramaDto> searchDoramas(String title, String genre, Integer releaseYear) {
+        String normalizedTitle = normalizeTitleForSearch(title);
+        String normalizedGenre = normalizeGenreForSearch(genre);
+
         return doramaMapper.toDtoList(
-                doramaRepository.searchDoramas(title, genre, releaseYear)
+                doramaRepository.searchDoramas(normalizedTitle, normalizedGenre, releaseYear)
         );
+    }
+
+    private String normalizeTitleForSearch(String title) {
+        if (title == null || title.isBlank()) {
+            return null;
+        }
+
+        return "%" + title.trim().toLowerCase() + "%";
+    }
+
+    private String normalizeGenreForSearch(String genre) {
+        if (genre == null || genre.isBlank()) {
+            return null;
+        }
+
+        return genre.trim().toLowerCase();
     }
 
     public List<DoramaDto> getTopRated(int limit) {
