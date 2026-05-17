@@ -7,11 +7,12 @@ import ru.bmstu.iu5.doramadreams.dto.DoramaDto;
 import ru.bmstu.iu5.doramadreams.exception.BadRequestException;
 import ru.bmstu.iu5.doramadreams.exception.ConflictException;
 import ru.bmstu.iu5.doramadreams.exception.ResourceNotFoundException;
-import ru.bmstu.iu5.doramadreams.mapper.DoramaMapper;
 import ru.bmstu.iu5.doramadreams.model.Dorama;
 import ru.bmstu.iu5.doramadreams.model.Genre;
+import ru.bmstu.iu5.doramadreams.model.Tag;
 import ru.bmstu.iu5.doramadreams.repository.DoramaRepository;
 import ru.bmstu.iu5.doramadreams.repository.GenreRepository;
+import ru.bmstu.iu5.doramadreams.repository.TagRepository;
 
 import java.util.HashSet;
 import java.util.List;
@@ -23,25 +24,26 @@ public class DoramaService {
 
     private final DoramaRepository doramaRepository;
     private final GenreRepository genreRepository;
-    private final DoramaMapper doramaMapper;
+    private final TagRepository tagRepository;
+    private final DoramaDtoService doramaDtoService;
 
     public List<DoramaDto> getAllDoramas() {
-        return doramaMapper.toDtoList(doramaRepository.findAll());
+        return doramaDtoService.toDtoList(doramaRepository.findAll());
     }
 
     public DoramaDto getById(Long id) {
-        return doramaMapper.toDto(findDoramaEntityById(id));
+        return doramaDtoService.toDto(findDoramaEntityById(id));
     }
 
     public DoramaDto getByName(String name) {
         Dorama dorama = doramaRepository.findByTitleIgnoreCase(name)
                 .orElseThrow(() -> new ResourceNotFoundException("Дорама с таким названием не найдена"));
 
-        return doramaMapper.toDto(dorama);
+        return doramaDtoService.toDto(dorama);
     }
 
     public List<DoramaDto> getDoramasByGenre(String genreName) {
-        return doramaMapper.toDtoList(doramaRepository.findByGenres_NameIgnoreCase(genreName));
+        return doramaDtoService.toDtoList(doramaRepository.findByGenres_NameIgnoreCase(genreName));
     }
 
     public DoramaDto createDorama(DoramaDto doramaDto) {
@@ -59,8 +61,9 @@ public class DoramaService {
         dorama.setReleaseYear(doramaDto.getReleaseYear());
         dorama.setPosterUrl(doramaDto.getPosterUrl());
         dorama.setGenres(resolveGenres(doramaDto.getGenres()));
+        dorama.setTags(resolveTags(doramaDto.getTags()));
 
-        return doramaMapper.toDto(doramaRepository.save(dorama));
+        return doramaDtoService.toDto(doramaRepository.save(dorama));
     }
 
     public DoramaDto updateDorama(Long id, DoramaDto doramaDto) {
@@ -97,7 +100,11 @@ public class DoramaService {
             dorama.setGenres(resolveGenres(doramaDto.getGenres()));
         }
 
-        return doramaMapper.toDto(doramaRepository.save(dorama));
+        if (doramaDto.getTags() != null) {
+            dorama.setTags(resolveTags(doramaDto.getTags()));
+        }
+
+        return doramaDtoService.toDto(doramaRepository.save(dorama));
     }
 
     public void deleteDorama(Long id) {
@@ -135,12 +142,40 @@ public class DoramaService {
         return genres;
     }
 
-    public List<DoramaDto> searchDoramas(String title, String genre, Integer releaseYear) {
+    private Set<Tag> resolveTags(List<String> tagNames) {
+        Set<Tag> tags = new HashSet<>();
+
+        if (tagNames == null || tagNames.isEmpty()) {
+            return tags;
+        }
+
+        for (String tagName : tagNames) {
+            if (tagName == null || tagName.isBlank()) {
+                continue;
+            }
+
+            String normalizedTagName = tagName.trim().toLowerCase();
+
+            Tag tag = tagRepository.findByNameIgnoreCase(normalizedTagName)
+                    .orElseGet(() -> {
+                        Tag newTag = new Tag();
+                        newTag.setName(normalizedTagName);
+                        return tagRepository.save(newTag);
+                    });
+
+            tags.add(tag);
+        }
+
+        return tags;
+    }
+
+    public List<DoramaDto> searchDoramas(String title, String genre, String tag, Integer releaseYear) {
         String normalizedTitle = normalizeTitleForSearch(title);
         String normalizedGenre = normalizeGenreForSearch(genre);
+        String normalizedTag = normalizeTagForSearch(tag);
 
-        return doramaMapper.toDtoList(
-                doramaRepository.searchDoramas(normalizedTitle, normalizedGenre, releaseYear)
+        return doramaDtoService.toDtoList(
+                doramaRepository.searchDoramas(normalizedTitle, normalizedGenre, normalizedTag, releaseYear)
         );
     }
 
@@ -160,8 +195,16 @@ public class DoramaService {
         return genre.trim().toLowerCase();
     }
 
+    private String normalizeTagForSearch(String tag) {
+        if (tag == null || tag.isBlank()) {
+            return null;
+        }
+
+        return tag.trim().toLowerCase();
+    }
+
     public List<DoramaDto> getTopRated(int limit) {
-        return doramaMapper.toDtoList(
+        return doramaDtoService.toDtoList(
                 doramaRepository.findTopRated(PageRequest.of(0, limit))
         );
     }

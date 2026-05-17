@@ -15,9 +15,12 @@ public class DoramaDto {
     private String posterUrl;
     private String videoUrl;
     private Double averageRating;
+    private Long ratingsCount;
     private Long countryId;
     private String countryName;
     private String countryIsoCode;
     private Integer duration;
     private List<String> genres;
+    private List<String> tags;
+    private List<ActorDto> actors;
 }

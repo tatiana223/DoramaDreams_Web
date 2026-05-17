@@ -6,7 +6,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import ru.bmstu.iu5.doramadreams.dto.DoramaDto;
 import ru.bmstu.iu5.doramadreams.exception.ResourceNotFoundException;
-import ru.bmstu.iu5.doramadreams.mapper.DoramaMapper;
 import ru.bmstu.iu5.doramadreams.model.Favorite;
 import ru.bmstu.iu5.doramadreams.repository.FavoriteRepository;
 import ru.bmstu.iu5.doramadreams.repository.UserRepository;
@@ -19,7 +18,7 @@ public class FavoriteService {
     @Autowired private FavoriteRepository favoriteRepository;
     @Autowired private DoramaRepository doramaRepository;
     @Autowired private UserRepository userRepository;
-    @Autowired private DoramaMapper doramaMapper;
+    @Autowired private DoramaDtoService doramaDtoService;
 
     public void addFavorite(Long userId, Long doramaId) {
         if (!favoriteRepository.existsByUser_UserIdAndDorama_DoramaId(userId, doramaId)) {
@@ -37,12 +36,12 @@ public class FavoriteService {
 
     public List<DoramaDto> getUserFavorites(Long userId) {
         return favoriteRepository.findByUser_UserId(userId).stream()
-                .map(f -> doramaMapper.toDto(f.getDorama()))
+                .map(f -> doramaDtoService.toDto(f.getDorama()))
                 .toList();
     }
 
     public List<DoramaDto> getMostFavoritedDoramas(int limit) {
-        return doramaMapper.toDtoList(
+        return doramaDtoService.toDtoList(
                 favoriteRepository.findMostFavoritedDoramas(PageRequest.of(0, limit))
         );
     }

@@ -28,6 +28,7 @@ export function CatalogPage() {
   const [recommendations, setRecommendations] = useState<Dorama[]>([]);
   const [title, setTitle] = useState("");
   const [genre, setGenre] = useState("");
+  const [tag, setTag] = useState("");
   const [releaseYear, setReleaseYear] = useState("");
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
@@ -36,6 +37,12 @@ export function CatalogPage() {
     const uniqueGenres = new Set<string>();
     allDoramas.forEach((dorama) => dorama.genres?.forEach((item) => uniqueGenres.add(item)));
     return Array.from(uniqueGenres).slice(0, 10);
+  }, [allDoramas]);
+
+  const tags = useMemo(() => {
+    const uniqueTags = new Set<string>();
+    allDoramas.forEach((dorama) => dorama.tags?.forEach((item) => uniqueTags.add(item)));
+    return Array.from(uniqueTags).slice(0, 16);
   }, [allDoramas]);
 
   const visibleDoramas = useMemo(() => {
@@ -52,7 +59,7 @@ export function CatalogPage() {
     return doramas;
   }, [activeTab, doramas, favorites, history, recommendations, allDoramas]);
 
-  const hasFilters = Boolean(title.trim() || genre.trim() || releaseYear.trim());
+  const hasFilters = Boolean(title.trim() || genre.trim() || tag.trim() || releaseYear.trim());
 
   useEffect(() => {
     loadPage();
@@ -80,12 +87,12 @@ export function CatalogPage() {
     }
   }
 
-  async function handleSearch(selectedGenre = genre) {
+  async function handleSearch(selectedGenre = genre, selectedTag = tag) {
     setError("");
     setIsLoading(true);
     setActiveTab("all");
     try {
-      const data = await searchDoramas({ title, genre: selectedGenre, releaseYear });
+      const data = await searchDoramas({ title, genre: selectedGenre, tag: selectedTag, releaseYear });
       setDoramas(data);
     } catch (error) {
       setError(error instanceof Error ? error.message : "Не удалось выполнить поиск");
@@ -97,12 +104,19 @@ export function CatalogPage() {
   async function handleGenreClick(selectedGenre: string) {
     const nextGenre = genre === selectedGenre ? "" : selectedGenre;
     setGenre(nextGenre);
-    await handleSearch(nextGenre);
+    await handleSearch(nextGenre, tag);
+  }
+
+  async function handleTagClick(selectedTag: string) {
+    const nextTag = tag === selectedTag ? "" : selectedTag;
+    setTag(nextTag);
+    await handleSearch(genre, nextTag);
   }
 
   async function handleReset() {
     setTitle("");
     setGenre("");
+    setTag("");
     setReleaseYear("");
     setDoramas(allDoramas);
     setActiveTab("all");
@@ -136,12 +150,13 @@ export function CatalogPage() {
         </section>
 
         <section className="mt-5 rounded-[1.8rem] border border-border/70 bg-card/85 dark:border-white/10 dark:bg-card/85 dark:bg-white/[0.06] p-3 backdrop-blur-xl">
-          <div className="grid gap-3 lg:grid-cols-[1fr_180px_120px_auto]">
+          <div className="grid gap-3 lg:grid-cols-[1fr_160px_160px_120px_auto]">
             <div className="relative">
               <Search className="absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground/70 dark:text-white/35" />
               <Input className="h-12 rounded-2xl border-border/70 bg-background/80 dark:border-white/10 dark:bg-black/25 pl-10 text-foreground dark:text-white placeholder:text-muted-foreground/70 dark:text-white/35" placeholder="Название дорамы" value={title} onChange={(e) => setTitle(e.target.value)} onKeyDown={(e) => e.key === "Enter" && handleSearch()} />
             </div>
             <Input className="h-12 rounded-2xl border-border/70 bg-background/80 dark:border-white/10 dark:bg-black/25 text-foreground dark:text-white placeholder:text-muted-foreground/70 dark:text-white/35" placeholder="Жанр" value={genre} onChange={(e) => setGenre(e.target.value)} onKeyDown={(e) => e.key === "Enter" && handleSearch()} />
+            <Input className="h-12 rounded-2xl border-border/70 bg-background/80 dark:border-white/10 dark:bg-black/25 text-foreground dark:text-white placeholder:text-muted-foreground/70 dark:text-white/35" placeholder="Тег" value={tag} onChange={(e) => setTag(e.target.value)} onKeyDown={(e) => e.key === "Enter" && handleSearch()} />
             <Input className="h-12 rounded-2xl border-border/70 bg-background/80 dark:border-white/10 dark:bg-black/25 text-foreground dark:text-white placeholder:text-muted-foreground/70 dark:text-white/35" placeholder="Год" value={releaseYear} onChange={(e) => setReleaseYear(e.target.value)} onKeyDown={(e) => e.key === "Enter" && handleSearch()} />
             <div className="flex gap-2">
               <Button onClick={() => handleSearch()} className="h-12 rounded-2xl bg-gradient-to-r from-violet-600 to-fuchsia-500 px-6 font-bold text-white">Найти</Button>
@@ -154,6 +169,16 @@ export function CatalogPage() {
               {genres.map((item) => (
                 <button key={item} onClick={() => handleGenreClick(item)} className={`rounded-full border px-4 py-2 text-sm font-semibold transition ${genre === item ? "border-violet-400 bg-violet-500 text-white" : "border-border/70 bg-background/60 dark:border-white/10 dark:bg-background/60 dark:bg-white/5 text-muted-foreground dark:text-white/65 hover:bg-background/70 dark:bg-white/10 hover:text-foreground dark:hover:text-white"}`}>
                   {item}
+                </button>
+              ))}
+            </div>
+          )}
+
+          {tags.length > 0 && (
+            <div className="mt-3 flex flex-wrap gap-2">
+              {tags.map((item) => (
+                <button key={item} onClick={() => handleTagClick(item)} className={`rounded-full border px-4 py-2 text-xs font-semibold transition ${tag === item ? "border-fuchsia-400 bg-fuchsia-500 text-white" : "border-border/70 bg-background/60 dark:border-white/10 dark:bg-background/60 dark:bg-white/5 text-muted-foreground dark:text-white/65 hover:bg-background/70 dark:bg-white/10 hover:text-foreground dark:hover:text-white"}`}>
+                  #{item}
                 </button>
               ))}
             </div>
@@ -201,6 +226,13 @@ function DoramaCard({ dorama }: { dorama: Dorama }) {
       <CardContent className="p-4">
         <h2 className="line-clamp-2 min-h-11 text-base font-black leading-tight">{dorama.title}</h2>
         <p className="mt-2 text-xs text-muted-foreground dark:text-white/45">{dorama.releaseYear || "Год не указан"} · {dorama.genres?.slice(0, 2).join(", ") || "жанр не указан"}</p>
+        {dorama.tags && dorama.tags.length > 0 && (
+          <div className="mt-3 flex flex-wrap gap-1.5">
+            {dorama.tags.slice(0, 3).map((item) => (
+              <span key={item} className="rounded-full bg-fuchsia-500/10 px-2 py-1 text-[11px] font-bold text-fuchsia-700 dark:text-fuchsia-200">#{item}</span>
+            ))}
+          </div>
+        )}
         <div className="mt-4 grid grid-cols-2 gap-2">
           <Link to={`/doramas/${dorama.doramaId}`} className="rounded-2xl border border-border/70 bg-background/60 dark:border-white/10 dark:bg-background/60 dark:bg-white/5 px-3 py-2 text-center text-sm font-bold text-foreground/80 dark:text-white/80 transition hover:bg-background/70 dark:bg-white/10">Подробнее</Link>
           <Link to={`/doramas/${dorama.doramaId}/watch`} className="rounded-2xl bg-gradient-to-r from-violet-600 to-fuchsia-500 px-3 py-2 text-center text-sm font-bold text-white">Смотреть</Link>

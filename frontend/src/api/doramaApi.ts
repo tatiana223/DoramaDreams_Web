@@ -34,6 +34,10 @@ export async function searchDoramas(params: DoramaSearchParams): Promise<Dorama[
     searchParams.set("genre", params.genre.trim());
   }
 
+  if (params.tag?.trim()) {
+    searchParams.set("tag", params.tag.trim());
+  }
+
   if (params.releaseYear?.trim()) {
     searchParams.set("releaseYear", params.releaseYear.trim());
   }
@@ -136,4 +140,10 @@ export async function addReview(doramaId: number, content: string): Promise<Revi
   });
 
   return handleResponse<Review>(response);
+}
+
+
+export async function getTags(): Promise<{ tagId: number; name: string }[]> {
+  const response = await fetch("/api/tags");
+  return handleResponse<{ tagId: number; name: string }[]>(response);
 }

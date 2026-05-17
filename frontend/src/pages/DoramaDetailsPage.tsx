@@ -221,6 +221,16 @@ export function DoramaDetailsPage() {
               {dorama.genres?.map((genre) => <BadgeText key={genre}>{genre}</BadgeText>)}
             </div>
 
+            {dorama.tags && dorama.tags.length > 0 && (
+              <div className="mt-3 flex flex-wrap gap-2">
+                {dorama.tags.map((tag) => (
+                  <span key={tag} className="rounded-full bg-fuchsia-500/10 px-3 py-1 text-sm font-bold text-fuchsia-700 dark:bg-fuchsia-400/10 dark:text-fuchsia-200">
+                    #{tag}
+                  </span>
+                ))}
+              </div>
+            )}
+
             <h1 className="mt-5 text-4xl font-black tracking-tight md:text-5xl">{dorama.title}</h1>
 
             {dorama.originalTitle && <p className="mt-2 text-muted-foreground dark:text-white/45">{dorama.originalTitle}</p>}
@@ -311,6 +321,29 @@ export function DoramaDetailsPage() {
             {error && <p className="mt-4 text-sm font-semibold text-red-600">{error}</p>}
           </div>
         </section>
+
+        {dorama.actors && dorama.actors.length > 0 && (
+          <section className="mt-6 rounded-[2rem] border border-border/70 bg-card/90 p-6 shadow-sm dark:border-white/10 dark:bg-white/[0.06]">
+            <h2 className="text-xl font-black">Актёры</h2>
+            <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              {dorama.actors.map((actor) => (
+                <div key={actor.actorId} className="flex items-center gap-3 rounded-2xl border border-border/70 bg-background/80 p-3 dark:border-white/10 dark:bg-white/[0.07]">
+                  {actor.photoUrl ? (
+                    <img src={actor.photoUrl} alt={actor.fullName} className="h-14 w-14 rounded-full object-cover" />
+                  ) : (
+                    <div className="flex h-14 w-14 items-center justify-center rounded-full bg-violet-100 text-sm font-bold text-violet-700 dark:bg-white/10 dark:text-violet-200">
+                      {actor.fullName.slice(0, 1)}
+                    </div>
+                  )}
+                  <div>
+                    <p className="font-bold">{actor.fullName}</p>
+                    {actor.biography && <p className="line-clamp-2 text-xs text-muted-foreground dark:text-white/45">{actor.biography}</p>}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
 
         <section className="mt-6 rounded-[2rem] border border-border/70 bg-card/90 p-6 shadow-sm dark:border-white/10 dark:bg-white/[0.06]">
           <div className="flex flex-wrap items-center justify-between gap-4">

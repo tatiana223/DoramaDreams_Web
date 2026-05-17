@@ -41,4 +41,20 @@ public class Dorama {
             inverseJoinColumns = @JoinColumn(name = "genre_id")
     )
     private Set<Genre> genres = new HashSet<>();
+
+    @ManyToMany
+    @JoinTable(
+            name = "dorama_actors",
+            joinColumns = @JoinColumn(name = "dorama_id"),
+            inverseJoinColumns = @JoinColumn(name = "actor_id")
+    )
+    private Set<Actor> actors = new HashSet<>();
+
+    @ManyToMany
+    @JoinTable(
+            name = "dorama_tags",
+            joinColumns = @JoinColumn(name = "dorama_id"),
+            inverseJoinColumns = @JoinColumn(name = "tag_id")
+    )
+    private Set<Tag> tags = new HashSet<>();
 }

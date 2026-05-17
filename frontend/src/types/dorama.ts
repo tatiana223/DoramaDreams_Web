@@ -7,12 +7,28 @@ export type Dorama = {
   posterUrl: string | null;
   videoUrl?: string | null;
   averageRating: number | null;
+  ratingsCount?: number;
   genres: string[];
+  tags?: string[];
+  actors?: Actor[];
+};
+
+export type Actor = {
+  actorId: number;
+  fullName: string;
+  photoUrl: string | null;
+  biography: string | null;
+};
+
+export type Tag = {
+  tagId: number;
+  name: string;
 };
 
 export type DoramaSearchParams = {
   title?: string;
   genre?: string;
+  tag?: string;
   releaseYear?: string;
 };
 
