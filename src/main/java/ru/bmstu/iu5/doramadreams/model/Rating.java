@@ -3,6 +3,8 @@ package ru.bmstu.iu5.doramadreams.model;
 import jakarta.persistence.*;
 import lombok.Data;
 
+import java.time.LocalDateTime;
+
 @Entity
 @Table(
         name = "ratings",
@@ -26,4 +28,7 @@ public class Rating {
 
     @Column(nullable = false)
     private Integer score; // Оценка от 1 до 10
+
+    @Column(name = "created_at")
+    private LocalDateTime createdAt = LocalDateTime.now();
 }

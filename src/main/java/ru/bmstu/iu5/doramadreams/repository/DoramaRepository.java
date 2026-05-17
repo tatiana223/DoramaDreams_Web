@@ -15,6 +15,8 @@ import java.util.Set;
 public interface DoramaRepository extends JpaRepository<Dorama, Long> {
     Optional<Dorama> findByTitleIgnoreCase(String title);
 
+    Optional<Dorama> findByTmdbId(Integer tmdbId);
+
     List<Dorama> findByTitleContainingIgnoreCase(String title);
 
     List<Dorama> findByReleaseYear(Integer releaseYear);
@@ -23,18 +25,25 @@ public interface DoramaRepository extends JpaRepository<Dorama, Long> {
 
     List<Dorama> findByGenres_NameIgnoreCase(String genreName);
 
+    List<Dorama> findByTags_NameIgnoreCase(String tagName);
+
     boolean existsByTitleIgnoreCase(String title);
 
+    boolean existsByTmdbId(Integer tmdbId);
+
     @Query("""
-    SELECT d FROM Dorama d
+    SELECT DISTINCT d FROM Dorama d
     LEFT JOIN d.genres g
-    WHERE (:title IS NULL OR LOWER(d.title) LIKE LOWER(CONCAT('%', :title, '%')))
-    AND (:genre IS NULL OR LOWER(g.name) = LOWER(:genre))
+    LEFT JOIN d.tags t
+    WHERE (:title IS NULL OR LOWER(d.title) LIKE :title)
+    AND (:genre IS NULL OR LOWER(g.name) = :genre)
+    AND (:tag IS NULL OR LOWER(t.name) = :tag)
     AND (:releaseYear IS NULL OR d.releaseYear = :releaseYear)
     """)
     List<Dorama> searchDoramas(
             @Param("title") String title,
             @Param("genre") String genre,
+            @Param("tag") String tag,
             @Param("releaseYear") Integer releaseYear
     );
 

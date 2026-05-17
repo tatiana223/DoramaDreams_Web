@@ -1,5 +1,7 @@
 package ru.bmstu.iu5.doramadreams.controller;
 
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -11,6 +13,7 @@ import ru.bmstu.iu5.doramadreams.service.WatchHistoryService;
 
 import java.util.List;
 
+@Tag(name = "Watch History", description = "История просмотра")
 @RestController
 @RequestMapping("/api/history")
 @RequiredArgsConstructor
@@ -18,12 +21,14 @@ public class WatchHistoryController {
 
     private final WatchHistoryService watchHistoryService;
     private final CurrentUserService currentUserService;
+    @Operation(summary = "Получить мою историю просмотра")
 
     @GetMapping("/my")
     public List<WatchHistoryDto> getMyHistory() {
         Long userId = currentUserService.getCurrentUserId();
         return watchHistoryService.getUserHistory(userId);
     }
+    @Operation(summary = "Добавить или обновить прогресс просмотра")
 
     @PostMapping("/add")
     public WatchHistoryDto addRecord(
@@ -41,6 +46,7 @@ public class WatchHistoryController {
                 watchStatus
         );
     }
+    @Operation(summary = "Получить мою историю по статусу")
 
     @GetMapping("/my/status/{status}")
     public List<WatchHistoryDto> getHistoryByStatus(@PathVariable String status) {
@@ -48,16 +54,19 @@ public class WatchHistoryController {
         Long userId = currentUserService.getCurrentUserId();
         return watchHistoryService.getUserHistoryByStatus(userId, watchStatus);
     }
+    @Operation(summary = "Получить историю просмотра дорамы")
 
     @GetMapping("/dorama/{doramaId}")
     public List<WatchHistoryDto> getDoramaHistory(@PathVariable Long doramaId) {
         return watchHistoryService.getDoramaHistory(doramaId);
     }
+    @Operation(summary = "Получить количество просмотров дорамы")
 
     @GetMapping("/dorama/{doramaId}/count")
     public Long getDoramaWatchCount(@PathVariable Long doramaId) {
         return watchHistoryService.getDoramaWatchCount(doramaId);
     }
+    @Operation(summary = "Удалить запись из моей истории просмотра")
 
     @DeleteMapping("/my/dorama/{doramaId}")
     public ResponseEntity<Void> deleteHistoryRecord(@PathVariable Long doramaId) {

@@ -41,41 +41,35 @@ public class SecurityConfig {
                 )
                 .authenticationProvider(authenticationProvider())
                 .authorizeHttpRequests(auth -> auth
-
-                        // Auth
                         .requestMatchers(
                                 "/api/auth/register",
                                 "/api/auth/login"
                         ).permitAll()
 
-                        // Swagger
                         .requestMatchers(
+                                "/swagger-ui.html",
                                 "/swagger-ui/**",
+                                "/v3/api-docs",
                                 "/v3/api-docs/**",
                                 "/openapi.yaml"
                         ).permitAll()
 
-                        // Public dorama data
+                        .requestMatchers("/api/admin/**").hasRole("ADMIN")
+
+                        .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
+
                         .requestMatchers(HttpMethod.GET,
                                 "/api/doramas/**",
                                 "/api/genres/**",
-                                "/api/actors/**"
-                        ).permitAll()
-
-                        // Public ratings by dorama
-                        .requestMatchers(HttpMethod.GET,
+                                "/api/actors/**",
+                                "/api/tags/**",
+                                "/api/reviews/dorama/**",
                                 "/api/ratings/dorama/**"
                         ).permitAll()
 
-                        // Public reviews by dorama and search
-                        .requestMatchers(HttpMethod.GET,
-                                "/api/reviews/dorama/**",
-                                "/api/reviews/search"
-                        ).permitAll()
-
-                        // Everything else requires authorization
                         .anyRequest().authenticated()
                 )
+
                 .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class)
                 .build();
     }

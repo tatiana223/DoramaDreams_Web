@@ -7,11 +7,20 @@ import java.util.List;
 @Data
 public class DoramaDto {
     private Long doramaId;
+    private Integer tmdbId;
     private String title;
     private String originalTitle;
     private String description;
     private Integer releaseYear;
     private String posterUrl;
+    private String videoUrl;
     private Double averageRating;
+    private Long ratingsCount;
+    private Long countryId;
+    private String countryName;
+    private String countryIsoCode;
+    private Integer duration;
     private List<String> genres;
+    private List<String> tags;
+    private List<ActorDto> actors;
 }
