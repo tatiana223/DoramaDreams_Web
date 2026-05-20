@@ -19,10 +19,4 @@ public class AdminTmdbImportController {
     public String importKoreanDoramas(@RequestParam(defaultValue = "3") int pages) {
         return tmdbImportService.importKoreanDoramas(pages);
     }
-
-    @Operation(summary = "Импортировать популярные китайские дорамы из TMDB")
-    @PostMapping("/import-chinese-doramas")
-    public String importChineseDoramas(@RequestParam(defaultValue = "3") int pages) {
-        return tmdbImportService.importChineseDoramas(pages);
-    }
 }

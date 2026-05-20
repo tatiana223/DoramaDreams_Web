@@ -11,7 +11,6 @@ const heroPhrases = [
   "Истории, к которым хочется прикоснуться",
 ];
 
-
 export function HomePage() {
   const [phraseIndex, setPhraseIndex] = useState(0);
   const [isVisible, setIsVisible] = useState(true);
@@ -22,7 +21,7 @@ export function HomePage() {
 
       setTimeout(() => {
         setPhraseIndex((currentIndex) =>
-          currentIndex === heroPhrases.length - 1 ? 0 : currentIndex + 1,
+          currentIndex === heroPhrases.length - 1 ? 0 : currentIndex + 1
         );
         setIsVisible(true);
       }, 250);
@@ -33,9 +32,8 @@ export function HomePage() {
 
   return (
     <div className="relative min-h-svh overflow-hidden bg-background text-foreground transition-colors">
-      <div className="absolute inset-0 -z-10 bg-[radial-gradient(circle_at_12%_18%,rgba(139,92,246,0.30),transparent_28%),radial-gradient(circle_at_88%_20%,rgba(236,72,153,0.22),transparent_26%),radial-gradient(circle_at_50%_85%,rgba(59,130,246,0.18),transparent_30%),linear-gradient(135deg,#fff8fc_0%,#f6f0ff_45%,#eef6ff_100%)] dark:bg-[radial-gradient(circle_at_12%_18%,rgba(139,92,246,0.36),transparent_28%),radial-gradient(circle_at_88%_20%,rgba(236,72,153,0.26),transparent_26%),radial-gradient(circle_at_50%_85%,rgba(59,130,246,0.16),transparent_30%),linear-gradient(135deg,#070511_0%,#140b24_50%,#0b1020_100%)]" />
-      <div className="absolute left-[15%] top-[30%] -z-10 h-[320px] w-[320px] rounded-full bg-fuchsia-300/25 blur-3xl dark:bg-fuchsia-600/15" />
-      <div className="absolute right-[10%] bottom-[12%] -z-10 h-[360px] w-[360px] rounded-full bg-sky-300/20 blur-3xl dark:bg-sky-600/10" />
+      <div className="absolute inset-0 -z-10 bg-[radial-gradient(circle_at_20%_10%,rgba(168,85,247,0.28),transparent_32%),radial-gradient(circle_at_82%_24%,rgba(236,72,153,0.20),transparent_30%),linear-gradient(135deg,#fff7fb_0%,#f5f0ff_48%,#eef7ff_100%)] dark:bg-[radial-gradient(circle_at_20%_10%,rgba(168,85,247,0.34),transparent_32%),radial-gradient(circle_at_82%_24%,rgba(236,72,153,0.24),transparent_30%),linear-gradient(135deg,#080512_0%,#160d26_52%,#0b0714_100%)]" />
+      <div className="absolute left-1/2 top-20 -z-10 h-[520px] w-[520px] -translate-x-1/2 rounded-full bg-violet-300/30 blur-3xl dark:bg-violet-600/20" />
 
       <header className="mx-auto flex h-16 max-w-7xl items-center justify-between px-6">
         <Link to="/" className="flex items-center gap-3">
@@ -50,6 +48,9 @@ export function HomePage() {
         </Link>
 
         <nav className="hidden items-center gap-8 text-sm font-medium text-muted-foreground md:flex">
+          <Link to="/" className="transition hover:text-foreground">
+            О проекте
+          </Link>
           <Link to="/catalog" className="transition hover:text-foreground">
             Каталог
           </Link>
@@ -70,22 +71,25 @@ export function HomePage() {
       </header>
 
       <main className="relative">
-        <section className="mx-auto flex min-h-[calc(100svh-4rem)] max-w-5xl flex-col items-center justify-center px-6 py-10 text-center">
+        <section className="mx-auto flex h-[calc(100svh-4rem)] max-w-5xl flex-col items-center justify-center px-6 pb-8 text-center">
           <div className="mb-5 inline-flex items-center justify-center gap-2 rounded-full border border-border/70 bg-card/75 px-4 py-2 text-sm font-medium text-violet-700 shadow-sm backdrop-blur dark:text-violet-200">
             <Sparkles className="h-4 w-4" />
             Добро пожаловать в DoramaDreams!
           </div>
 
           <h1
-            className={`min-h-[7rem] max-w-4xl text-center text-4xl font-black tracking-tight transition-all duration-300 sm:text-5xl md:min-h-[9rem] md:text-6xl bg-gradient-to-r from-violet-700 via-fuchsia-600 to-sky-500 bg-clip-text text-transparent ${
-              isVisible ? "translate-y-0 opacity-100" : "translate-y-3 opacity-0"
+            className={`min-h-[7rem] max-w-4xl text-center text-4xl font-black tracking-tight transition-all duration-300 sm:text-5xl md:min-h-[9rem] md:text-6xl ${
+              isVisible
+                ? "translate-y-0 opacity-100"
+                : "translate-y-3 opacity-0"
             }`}
           >
             {heroPhrases[phraseIndex]}
           </h1>
 
           <p className="mt-2 max-w-2xl text-center text-base leading-7 text-muted-foreground sm:text-lg">
-            Устраивай дорамные вечера вместе с DoramaDreams ✨
+            Ищи новые истории, сохраняй избранное, отмечай просмотренные серии,
+            оставляй отзывы и получай персональные рекомендации.
           </p>
 
           <div className="mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row">
@@ -106,13 +110,11 @@ export function HomePage() {
           </div>
 
           <div className="mt-10 grid w-full max-w-3xl gap-4 sm:grid-cols-3">
-            <Feature title="Избранное" text="самое любимое" />
-            <Feature title="История" text="всё под контролем" />
-            <Feature title="Рекомендации" text="магия под твой вкус" />
+            <Feature title="Избранное" text="сохраняй дорамы, которые хочешь посмотреть" />
+            <Feature title="История" text="отслеживай серии и статус просмотра" />
+            <Feature title="Рекомендации" text="получай подборки под свои интересы" />
           </div>
         </section>
-
-
       </main>
     </div>
   );
@@ -120,9 +122,9 @@ export function HomePage() {
 
 function Feature({ title, text }: { title: string; text: string }) {
   return (
-    <div className="rounded-3xl border border-border/70 bg-gradient-to-br from-white/80 to-violet-50/70 p-5 text-left shadow-sm backdrop-blur dark:border-white/10 dark:bg-gradient-to-br dark:from-white/[0.08] dark:to-violet-500/[0.06]">
+    <div className="rounded-3xl border border-border/70 bg-card/75 p-5 text-left shadow-sm backdrop-blur">
       <p className="font-bold">{title}</p>
-      <p className="mt-2 text-sm leading-5 text-muted-foreground dark:text-white/55">{text}</p>
+      <p className="mt-2 text-sm leading-5 text-muted-foreground">{text}</p>
     </div>
   );
 }

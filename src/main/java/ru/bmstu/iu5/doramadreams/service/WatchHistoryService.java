@@ -2,7 +2,6 @@ package ru.bmstu.iu5.doramadreams.service;
 
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 import ru.bmstu.iu5.doramadreams.dto.WatchHistoryDto;
 import ru.bmstu.iu5.doramadreams.exception.ResourceNotFoundException;
 import ru.bmstu.iu5.doramadreams.mapper.WatchHistoryMapper;
@@ -74,7 +73,6 @@ public class WatchHistoryService {
         );
     }
 
-    @Transactional
     public void deleteHistoryRecord(Long userId, Long doramaId) {
         if (!repository.existsByUser_UserIdAndDorama_DoramaId(userId, doramaId)) {
             throw new ResourceNotFoundException("Запись истории не найдена");

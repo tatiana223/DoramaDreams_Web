@@ -120,7 +120,7 @@ export function LoginPage() {
         </form>
 
         <p className="mt-6 text-center text-sm text-muted-foreground dark:text-white/55">
-          Ещё не с нами?{" "}
+          Нет аккаунта?{" "}
           <Link to="/register" className="font-semibold text-violet-700 dark:text-violet-300">
             Зарегистрироваться
           </Link>

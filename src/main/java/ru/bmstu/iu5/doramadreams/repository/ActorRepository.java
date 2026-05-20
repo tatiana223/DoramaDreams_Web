@@ -11,8 +11,6 @@ import java.util.Optional;
 public interface ActorRepository extends JpaRepository<Actor, Long> {
     Optional<Actor> findByFullNameIgnoreCase(String fullName);
 
-    Optional<Actor> findByTmdbId(Long tmdbId);
-
     List<Actor> findByFullNameContainingIgnoreCase(String fullName);
 
     boolean existsByFullNameIgnoreCase(String fullName);

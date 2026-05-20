@@ -3,7 +3,6 @@ package ru.bmstu.iu5.doramadreams.controller;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
-import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import ru.bmstu.iu5.doramadreams.dto.ReviewDto;
 import ru.bmstu.iu5.doramadreams.service.CurrentUserService;
@@ -60,13 +59,5 @@ public class ReviewController {
     @GetMapping("/dorama/{doramaId}/count")
     public Long getReviewCount(@PathVariable Long doramaId) {
         return reviewService.getReviewCount(doramaId);
-    }
-
-    @Operation(summary = "Удалить отзыв")
-    @DeleteMapping("/{reviewId}")
-    public ResponseEntity<Void> deleteReview(@PathVariable Long reviewId) {
-        Long userId = currentUserService.getCurrentUserId();
-        reviewService.deleteReview(userId, reviewId);
-        return ResponseEntity.noContent().build();
     }
 }

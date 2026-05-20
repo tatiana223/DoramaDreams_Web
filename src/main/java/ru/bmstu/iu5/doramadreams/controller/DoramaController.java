@@ -68,10 +68,9 @@ public class DoramaController {
             @RequestParam(required = false) String title,
             @RequestParam(required = false) String genre,
             @RequestParam(required = false) String tag,
-            @RequestParam(required = false) String country,
             @RequestParam(required = false) Integer releaseYear
     ) {
-        return ResponseEntity.ok(doramaService.searchDoramas(title, genre, tag, country, releaseYear));
+        return ResponseEntity.ok(doramaService.searchDoramas(title, genre, tag, releaseYear));
     }
     @Operation(summary = "Получить топ дорам по рейтингу")
 

@@ -17,9 +17,7 @@ export function DoramaCard({ dorama }: Props) {
         <h3 className="font-semibold">{dorama.title}</h3>
 
         <p className="text-sm text-zinc-400">
-          {[dorama.countryName, dorama.releaseYear || null, dorama.duration ? `${dorama.duration} мин` : null]
-            .filter(Boolean)
-            .join(" · ") || "Данные не указаны"}
+          {dorama.releaseYear || "Год не указан"}
         </p>
       </div>
     </div>
