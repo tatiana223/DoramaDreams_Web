@@ -2,13 +2,16 @@ package ru.bmstu.iu5.doramadreams.service;
 
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import ru.bmstu.iu5.doramadreams.dto.ReviewDto;
 import ru.bmstu.iu5.doramadreams.exception.BadRequestException;
+import ru.bmstu.iu5.doramadreams.exception.ForbiddenException;
 import ru.bmstu.iu5.doramadreams.exception.ResourceNotFoundException;
 import ru.bmstu.iu5.doramadreams.mapper.ReviewMapper;
 import ru.bmstu.iu5.doramadreams.model.Dorama;
 import ru.bmstu.iu5.doramadreams.model.Review;
 import ru.bmstu.iu5.doramadreams.model.User;
+import ru.bmstu.iu5.doramadreams.model.UserRole;
 import ru.bmstu.iu5.doramadreams.repository.DoramaRepository;
 import ru.bmstu.iu5.doramadreams.repository.ReviewRepository;
 import ru.bmstu.iu5.doramadreams.repository.UserRepository;
@@ -81,6 +84,30 @@ public class ReviewService {
         }
 
         return repository.countByDorama_DoramaId(doramaId);
+    }
+
+    @Transactional
+    public void deleteReview(Long userId, Long reviewId) {
+        if (userId == null) {
+            throw new BadRequestException("ID пользователя обязателен");
+        }
+
+        Review review = repository.findById(reviewId)
+                .orElseThrow(() -> new ResourceNotFoundException("Отзыв не найден"));
+
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("Пользователь не найден"));
+
+        boolean isAuthor = review.getUser() != null
+                && review.getUser().getUserId() != null
+                && review.getUser().getUserId().equals(userId);
+        boolean isAdmin = UserRole.ADMIN.equals(user.getRole());
+
+        if (!isAuthor && !isAdmin) {
+            throw new ForbiddenException("Можно удалить только свой отзыв");
+        }
+
+        repository.delete(review);
     }
 
     private void validateReview(Long userId, Long doramaId, String content) {

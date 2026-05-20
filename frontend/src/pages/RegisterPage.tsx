@@ -140,7 +140,7 @@ export function RegisterPage() {
         </form>
 
         <p className="mt-6 text-center text-sm text-muted-foreground dark:text-white/55">
-          Уже есть аккаунт?{" "}
+          Уже с нами?{" "}
           <Link to="/login" className="font-semibold text-violet-700 dark:text-violet-300">
             Войти
           </Link>

@@ -10,6 +10,7 @@ import java.util.List;
 @Mapper(componentModel = "spring")
 public interface ReviewMapper {
 
+    @Mapping(source = "user.userId", target = "userId")
     @Mapping(source = "user.username", target = "username")
     ReviewDto toDto(Review review);
 

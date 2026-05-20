@@ -10,6 +10,7 @@ import ru.bmstu.iu5.doramadreams.repository.DoramaRepository;
 import ru.bmstu.iu5.doramadreams.repository.FavoriteRepository;
 import ru.bmstu.iu5.doramadreams.repository.RatingRepository;
 import ru.bmstu.iu5.doramadreams.repository.UserRecommendationRepository;
+import ru.bmstu.iu5.doramadreams.repository.UserActorInteractionRepository;
 import ru.bmstu.iu5.doramadreams.repository.WatchHistoryRepository;
 
 import java.util.*;
@@ -39,6 +40,9 @@ public class RecommendationService {
     @Autowired
     private UserRecommendationRepository userRecommendationRepository;
 
+    @Autowired
+    private UserActorInteractionRepository userActorInteractionRepository;
+
     /**
      * Главная логика рекомендаций:
      * 1. Для пользователей, которые были в offline ML-обучении, сначала используем готовый ML-score.
@@ -51,6 +55,15 @@ public class RecommendationService {
         List<Favorite> favorites = favoriteRepository.findByUser_UserId(userId);
         List<Rating> ratings = ratingRepository.findByUser_UserId(userId);
         List<WatchHistory> watchHistory = watchHistoryRepository.findByUser_UserIdOrderByUpdatedAtDesc(userId);
+        List<UserActorInteraction> actorInteractions = userActorInteractionRepository.findByUser_UserIdAndInteractionTypeIn(
+                userId,
+                List.of(
+                        UserActorInteractionType.FAVORITE,
+                        UserActorInteractionType.RATING,
+                        UserActorInteractionType.COMMENT,
+                        UserActorInteractionType.VIEW
+                )
+        );
 
         Set<Long> excludedIds = buildExcludedDoramaIds(favorites, ratings, watchHistory);
         LinkedHashMap<Long, Dorama> result = new LinkedHashMap<>();
@@ -71,6 +84,7 @@ public class RecommendationService {
                             favorites,
                             ratings,
                             watchHistory,
+                            actorInteractions,
                             excludedForFallback,
                             DEFAULT_LIMIT - result.size()
                     ),
@@ -161,6 +175,7 @@ public class RecommendationService {
             List<Favorite> favorites,
             List<Rating> ratings,
             List<WatchHistory> watchHistory,
+            List<UserActorInteraction> actorInteractions,
             Set<Long> excludedIds,
             int limit
     ) {
@@ -204,6 +219,10 @@ public class RecommendationService {
                         userActorProfile
                 );
             }
+        }
+
+        for (UserActorInteraction interaction : actorInteractions) {
+            addActorInteractionToProfile(interaction, userActorProfile);
         }
 
         boolean hasUserProfile =
@@ -265,6 +284,43 @@ public class RecommendationService {
                 .limit(limit)
                 .map(DoramaScore::dorama)
                 .toList();
+    }
+
+    private void addActorInteractionToProfile(
+            UserActorInteraction interaction,
+            Map<String, Double> actorProfile
+    ) {
+        if (interaction == null || interaction.getActor() == null) {
+            return;
+        }
+
+        double weight = getActorInteractionWeight(interaction);
+        if (weight <= 0) {
+            return;
+        }
+
+        addWeight(actorProfile, interaction.getActor().getFullName(), weight);
+    }
+
+    private double getActorInteractionWeight(UserActorInteraction interaction) {
+        if (interaction.getInteractionType() == null) {
+            return 0.0;
+        }
+
+        return switch (interaction.getInteractionType()) {
+            case FAVORITE -> 5.0;
+            case RATING -> getActorRatingWeight(interaction.getRating());
+            case COMMENT -> 3.0;
+            case VIEW -> 0.75;
+        };
+    }
+
+    private double getActorRatingWeight(Integer rating) {
+        if (rating == null || rating < 5) {
+            return 0.0;
+        }
+
+        return Math.min(5.0, rating / 2.0);
     }
 
     private void addDoramaToProfile(
