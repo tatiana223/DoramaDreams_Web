@@ -23,8 +23,15 @@ import ru.bmstu.iu5.doramadreams.repository.GenreRepository;
 import ru.bmstu.iu5.doramadreams.repository.TagRepository;
 
 import java.io.ByteArrayInputStream;
+import java.time.LocalDate;
+import java.time.format.DateTimeParseException;
+import java.util.LinkedHashMap;
 import java.util.Locale;
+import java.util.Set;
+import java.util.HashSet;
+import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 
 @Service
 @RequiredArgsConstructor
@@ -35,6 +42,7 @@ public class TmdbImportService {
     private final GenreRepository genreRepository;
     private final ActorRepository actorRepository;
     private final TagRepository tagRepository;
+    private final TranslationService translationService;
 
     private final RestTemplate restTemplate = new RestTemplate();
     private final ObjectMapper objectMapper = new ObjectMapper();
@@ -59,34 +67,70 @@ public class TmdbImportService {
 
     @Transactional
     public String importKoreanDoramas(int pages) {
+        return importDoramasByCountry(pages, "Южная Корея", "KR");
+    }
+
+    @Transactional
+    public String importChineseDoramas(int pages) {
+        return importDoramasByCountry(pages, "Китай", "CN");
+    }
+
+    private String importDoramasByCountry(int pages, String countryName, String isoCode) {
         int imported = 0;
         int updated = 0;
+        int skippedWithoutRussianTitle = 0;
+        int failedItems = 0;
+        int failedPages = 0;
 
-        try {
-            MinioClient minioClient = createMinioClient();
-            createBucketIfNeeded(minioClient);
+        MinioClient minioClient = tryCreateMinioClient();
 
-            Country korea = countryRepository.findByIsoCode("KR")
-                    .orElseGet(() -> {
-                        Country country = new Country();
-                        country.setName("Южная Корея");
-                        country.setIsoCode("KR");
-                        return countryRepository.save(country);
-                    });
+        Country countryEntity = countryRepository.findByIsoCodeIgnoreCase(isoCode)
+                .orElseGet(() -> {
+                    Country country = new Country();
+                    country.setName(countryName);
+                    country.setIsoCode(isoCode);
+                    return countryRepository.save(country);
+                });
 
-            for (int page = 1; page <= pages; page++) {
-                String discoverUrl = "https://api.themoviedb.org/3/discover/tv"
-                        + "?api_key=" + tmdbApiKey
-                        + "&language=ru-RU"
-                        + "&sort_by=popularity.desc"
-                        + "&with_origin_country=KR"
-                        + "&include_adult=false"
-                        + "&page=" + page;
+        for (int page = 1; page <= pages; page++) {
+            String discoverUrl = "https://api.themoviedb.org/3/discover/tv"
+                    + "?api_key=" + tmdbApiKey
+                    + "&language=ru-RU"
+                    + "&sort_by=popularity.desc"
+                    + "&with_origin_country=" + isoCode
+                    + "&include_adult=false"
+                    + "&page=" + page;
 
+            JsonNode results;
+
+            try {
                 String response = restTemplate.getForObject(discoverUrl, String.class);
-                JsonNode results = objectMapper.readTree(response).path("results");
+                results = objectMapper.readTree(response).path("results");
 
-                for (JsonNode item : results) {
+                if (!results.isArray()) {
+                    failedPages++;
+                    continue;
+                }
+            } catch (Exception e) {
+                failedPages++;
+                System.err.println("Не удалось загрузить страницу TMDB " + page + " для страны " + isoCode);
+                e.printStackTrace();
+                continue;
+            }
+
+            for (JsonNode item : results) {
+                try {
+                    String russianTitle = normalizeOptionalText(item.path("name").asText(null));
+                    if (!isRussianDisplayText(russianTitle)) {
+                        skippedWithoutRussianTitle++;
+                        continue;
+                    }
+
+                    if (!item.path("id").isNumber()) {
+                        failedItems++;
+                        continue;
+                    }
+
                     Integer tmdbId = item.path("id").asInt();
 
                     Dorama dorama = doramaRepository.findByTmdbId(tmdbId)
@@ -98,25 +142,40 @@ public class TmdbImportService {
 
                     boolean isNew = dorama.getDoramaId() == null;
 
-                    dorama.setCountry(korea);
+                    dorama.setCountry(countryEntity);
                     updateBasicFields(dorama, item);
-                    fillDurationFromDetails(dorama, tmdbId);
+
+                    try {
+                        fillDurationFromDetails(dorama, tmdbId);
+                    } catch (Exception e) {
+                        System.err.println("Не удалось загрузить длительность TMDB ID " + tmdbId);
+                        e.printStackTrace();
+                    }
 
                     dorama.getGenres().clear();
                     fillGenres(dorama, item);
 
-                    dorama.getActors().clear();
-                    fillActors(dorama, tmdbId);
+                    try {
+                        fillActors(dorama, tmdbId);
+                    } catch (Exception e) {
+                        System.err.println("Не удалось загрузить актеров TMDB ID " + tmdbId);
+                        e.printStackTrace();
+                    }
 
                     dorama.getTags().clear();
                     fillHeuristicTags(dorama);
-                    fillTagsFromTmdbKeywords(dorama, tmdbId);
+
+                    try {
+                        fillTagsFromTmdbKeywords(dorama, tmdbId);
+                    } catch (Exception e) {
+                        System.err.println("Не удалось загрузить теги TMDB ID " + tmdbId);
+                        e.printStackTrace();
+                    }
 
                     String posterPath = item.path("poster_path").asText(null);
-                    if (posterPath != null && !posterPath.equals("null")
+                    if (posterPath != null && !posterPath.isBlank() && !posterPath.equals("null")
                             && (dorama.getPosterUrl() == null || dorama.getPosterUrl().isBlank())) {
-                        String posterUrl = uploadPosterToMinio(minioClient, tmdbId, posterPath);
-                        dorama.setPosterUrl(posterUrl);
+                        dorama.setPosterUrl(resolvePosterUrl(minioClient, tmdbId, posterPath));
                     }
 
                     doramaRepository.save(dorama);
@@ -126,36 +185,85 @@ public class TmdbImportService {
                     } else {
                         updated++;
                     }
+                } catch (Exception e) {
+                    failedItems++;
+                    System.err.println("Не удалось импортировать отдельную дораму из TMDB для страны " + isoCode);
+                    e.printStackTrace();
                 }
             }
+        }
 
-            return "Синхронизация завершена. Добавлено: " + imported + ", обновлено: " + updated;
+        return "Синхронизация завершена (" + countryName + "). Добавлено: " + imported
+                + ", обновлено: " + updated
+                + ", пропущено без русского названия: " + skippedWithoutRussianTitle
+                + ", ошибок записей: " + failedItems
+                + ", ошибок страниц: " + failedPages;
+    }
 
+    private MinioClient tryCreateMinioClient() {
+        try {
+            MinioClient minioClient = createMinioClient();
+            createBucketIfNeeded(minioClient);
+            return minioClient;
         } catch (Exception e) {
+            System.err.println("MinIO недоступен. Постеры будут сохранены прямыми ссылками TMDB.");
             e.printStackTrace();
-            throw new RuntimeException("Ошибка импорта дорам из TMDB", e);
+            return null;
         }
     }
 
+    private String resolvePosterUrl(MinioClient minioClient, Integer tmdbId, String posterPath) {
+        if (posterPath == null || posterPath.isBlank() || posterPath.equals("null")) {
+            return null;
+        }
+
+        if (minioClient == null) {
+            return buildTmdbPosterUrl(posterPath);
+        }
+
+        try {
+            String posterUrl = uploadPosterToMinio(minioClient, tmdbId, posterPath);
+            return posterUrl != null ? posterUrl : buildTmdbPosterUrl(posterPath);
+        } catch (Exception e) {
+            System.err.println("Не удалось загрузить постер в MinIO для TMDB ID " + tmdbId + ". Используется ссылка TMDB.");
+            e.printStackTrace();
+            return buildTmdbPosterUrl(posterPath);
+        }
+    }
+
+    private String buildTmdbPosterUrl(String posterPath) {
+        if (posterPath == null || posterPath.isBlank() || posterPath.equals("null")) {
+            return null;
+        }
+
+        return "https://image.tmdb.org/t/p/w500" + posterPath;
+    }
+
     private void updateBasicFields(Dorama dorama, JsonNode item) {
-        String title = item.path("name").asText(null);
-        if (title != null && !title.isBlank()) {
+        String title = normalizeOptionalText(item.path("name").asText(null));
+        if (isRussianDisplayText(title)) {
             dorama.setTitle(title);
         }
 
-        String originalTitle = item.path("original_name").asText(null);
-        if (originalTitle != null && !originalTitle.isBlank()) {
+        String originalTitle = normalizeOptionalText(item.path("original_name").asText(null));
+        if (originalTitle != null && !hasAsianLetters(originalTitle)) {
             dorama.setOriginalTitle(originalTitle);
+        } else if (originalTitle != null && hasAsianLetters(originalTitle)) {
+            dorama.setOriginalTitle(null);
         }
 
-        String description = item.path("overview").asText(null);
-        if (description != null && !description.isBlank()) {
+        String description = normalizeOptionalText(item.path("overview").asText(null));
+        if (description != null && (hasCyrillicLetters(description) || !hasAsianLetters(description))) {
             dorama.setDescription(description);
         }
 
-        String firstAirDate = item.path("first_air_date").asText("");
-        if (firstAirDate.length() >= 4) {
-            dorama.setReleaseYear(Integer.parseInt(firstAirDate.substring(0, 4)));
+        String firstAirDate = normalizeOptionalText(item.path("first_air_date").asText(null));
+        if (firstAirDate != null && firstAirDate.length() >= 4) {
+            try {
+                dorama.setReleaseYear(Integer.parseInt(firstAirDate.substring(0, 4)));
+            } catch (NumberFormatException ignored) {
+                // У некоторых записей TMDB дата может прийти в неожиданном формате.
+            }
         }
     }
 
@@ -202,38 +310,342 @@ public class TmdbImportService {
         }
 
         int limit = Math.min(cast.size(), 10);
+        Map<Long, Actor> targetActors = new LinkedHashMap<>();
 
         for (int i = 0; i < limit; i++) {
             JsonNode item = cast.get(i);
-            String fullName = item.path("name").asText(null);
+            Long personId = item.path("id").isMissingNode() ? null : item.path("id").asLong();
+            ActorImportData actorImportData = loadActorImportData(personId, item);
+            String fullName = normalizeOptionalText(actorImportData.fullName());
 
-            if (fullName == null || fullName.isBlank()) {
+            if (!isRussianDisplayText(fullName)) {
                 continue;
             }
 
-            String profilePath = item.path("profile_path").asText(null);
-            String photoUrl = null;
+            Optional<Actor> existingActor = personId != null
+                    ? actorRepository.findByTmdbId(personId)
+                    : Optional.empty();
 
-            if (profilePath != null && !profilePath.equals("null")) {
-                photoUrl = "https://image.tmdb.org/t/p/w300" + profilePath;
-            }
-
-            String finalPhotoUrl = photoUrl;
-
-            Actor actor = actorRepository.findByFullNameIgnoreCase(fullName)
+            Actor actor = existingActor
+                    .or(() -> actorRepository.findByFullNameIgnoreCase(fullName))
                     .orElseGet(() -> {
                         Actor newActor = new Actor();
                         newActor.setFullName(fullName);
-                        newActor.setPhotoUrl(finalPhotoUrl);
+                        applyActorImportData(newActor, actorImportData, true);
                         return actorRepository.save(newActor);
                     });
 
-            if ((actor.getPhotoUrl() == null || actor.getPhotoUrl().isBlank()) && finalPhotoUrl != null) {
-                actor.setPhotoUrl(finalPhotoUrl);
+            boolean actorChanged = false;
+            if (!fullName.equals(actor.getFullName())) {
+                actor.setFullName(fullName);
+                actorChanged = true;
+            }
+
+            if (applyActorImportData(actor, actorImportData, false)) {
+                actorChanged = true;
+            }
+
+            if (actorChanged) {
                 actorRepository.save(actor);
             }
 
-            dorama.getActors().add(actor);
+            if (actor.getActorId() != null) {
+                targetActors.putIfAbsent(actor.getActorId(), actor);
+            }
+        }
+
+        Set<Long> targetActorIds = targetActors.keySet();
+
+        dorama.getActors().removeIf(actor ->
+                actor.getActorId() != null && !targetActorIds.contains(actor.getActorId())
+        );
+
+        Set<Long> currentActorIds = new HashSet<>();
+        dorama.getActors().forEach(actor -> {
+            if (actor.getActorId() != null) {
+                currentActorIds.add(actor.getActorId());
+            }
+        });
+
+        targetActors.forEach((actorId, actor) -> {
+            if (!currentActorIds.contains(actorId)) {
+                dorama.getActors().add(actor);
+            }
+        });
+    }
+
+    private ActorImportData loadActorImportData(Long personId, JsonNode castItem) {
+        String photoUrl = buildTmdbProfileUrl(castItem.path("profile_path").asText(null));
+        String originalName = normalizeOptionalNonAsianText(castItem.path("original_name").asText(null));
+        ActorImportData data = new ActorImportData(
+                personId,
+                null,
+                normalizeOptionalText(castItem.path("name").asText(null)),
+                originalName,
+                photoUrl,
+                null,
+                null,
+                null,
+                null,
+                null
+        );
+
+        if (personId == null || personId <= 0) {
+            return data;
+        }
+
+        JsonNode russianDetails = loadPersonDetails(personId, "ru-RU");
+        data = data.merge(fromPersonDetails(russianDetails));
+
+        JsonNode englishDetails = loadPersonDetails(personId, "en-US");
+        data = data.mergeMissing(fromPersonDetails(englishDetails));
+
+        String translatedBiography = translateBiographyIfNeeded(data.biography());
+        if (!Objects.equals(translatedBiography, data.biography())) {
+            data = data.withBiography(translatedBiography);
+        }
+
+        return data;
+    }
+
+    private ActorImportData fromPersonDetails(JsonNode details) {
+        return new ActorImportData(
+                details.path("id").isMissingNode() ? null : details.path("id").asLong(),
+                normalizeOptionalText(details.path("imdb_id").asText(null)),
+                normalizeOptionalText(details.path("name").asText(null)),
+                normalizeOptionalNonAsianText(details.path("original_name").asText(null)),
+                buildTmdbProfileUrl(details.path("profile_path").asText(null)),
+                parseDate(details.path("birthday").asText(null)),
+                normalizeOptionalText(details.path("place_of_birth").asText(null)),
+                normalizeOptionalText(details.path("known_for_department").asText(null)),
+                details.path("popularity").isNumber() ? details.path("popularity").asDouble() : null,
+                normalizeOptionalText(details.path("biography").asText(null))
+        );
+    }
+
+    private JsonNode loadPersonDetails(Long personId, String language) {
+        try {
+            String personUrl = "https://api.themoviedb.org/3/person/" + personId
+                    + "?api_key=" + tmdbApiKey
+                    + "&language=" + language;
+
+            String personResponse = restTemplate.getForObject(personUrl, String.class);
+            return objectMapper.readTree(personResponse);
+        } catch (Exception ignored) {
+            return objectMapper.createObjectNode();
+        }
+    }
+
+    private String translateBiographyIfNeeded(String biography) {
+        String normalized = normalizeOptionalText(biography);
+
+        if (normalized == null || hasCyrillicLetters(normalized) || !hasLatinLetters(normalized)) {
+            return normalized;
+        }
+
+        try {
+            return translationService.translateEnglishToRussian(normalized);
+        } catch (Exception exception) {
+            System.err.println("Не удалось автоматически перевести биографию актёра из TMDB");
+            exception.printStackTrace();
+            return normalized;
+        }
+    }
+
+    private boolean applyActorImportData(Actor actor, ActorImportData data, boolean overwrite) {
+        boolean changed = false;
+
+        if (shouldSet(actor.getTmdbId(), overwrite) && data.tmdbId() != null) {
+            actor.setTmdbId(data.tmdbId());
+            changed = true;
+        }
+
+        if (shouldSet(actor.getImdbId(), overwrite) && data.imdbId() != null) {
+            actor.setImdbId(data.imdbId());
+            changed = true;
+        }
+
+        if (shouldSet(actor.getOriginalName(), overwrite) && data.originalName() != null) {
+            actor.setOriginalName(data.originalName());
+            changed = true;
+        }
+
+        if (shouldSet(actor.getPhotoUrl(), overwrite) && data.photoUrl() != null) {
+            actor.setPhotoUrl(data.photoUrl());
+            changed = true;
+        }
+
+        if (shouldSet(actor.getBirthDate(), overwrite) && data.birthDate() != null) {
+            actor.setBirthDate(data.birthDate());
+            changed = true;
+        }
+
+        if (shouldSet(actor.getPlaceOfBirth(), overwrite) && data.placeOfBirth() != null) {
+            actor.setPlaceOfBirth(data.placeOfBirth());
+            changed = true;
+        }
+
+        if (shouldSet(actor.getKnownForDepartment(), overwrite) && data.knownForDepartment() != null) {
+            actor.setKnownForDepartment(data.knownForDepartment());
+            changed = true;
+        }
+
+        if (shouldSet(actor.getPopularity(), overwrite) && data.popularity() != null) {
+            actor.setPopularity(data.popularity());
+            changed = true;
+        }
+
+        if (shouldSet(actor.getBiography(), overwrite) && data.biography() != null) {
+            actor.setBiography(data.biography());
+            changed = true;
+        }
+
+        return changed;
+    }
+
+    private boolean shouldSet(Object currentValue, boolean overwrite) {
+        if (overwrite) {
+            return true;
+        }
+
+        if (currentValue == null) {
+            return true;
+        }
+
+        return currentValue instanceof String value && value.isBlank();
+    }
+
+    private boolean isRussianDisplayText(String value) {
+        return value != null
+                && !value.isBlank()
+                && hasCyrillicLetters(value)
+                && !hasAsianLetters(value);
+    }
+
+    private boolean hasCyrillicLetters(String value) {
+        return value != null && value.codePoints()
+                .anyMatch(codePoint -> Character.isLetter(codePoint)
+                        && Character.UnicodeScript.of(codePoint) == Character.UnicodeScript.CYRILLIC);
+    }
+
+    private boolean hasLatinLetters(String value) {
+        return value != null && value.codePoints()
+                .anyMatch(codePoint -> Character.isLetter(codePoint)
+                        && Character.UnicodeScript.of(codePoint) == Character.UnicodeScript.LATIN);
+    }
+
+    private boolean hasAsianLetters(String value) {
+        return value.codePoints()
+                .anyMatch(codePoint -> {
+                    if (!Character.isLetter(codePoint)) {
+                        return false;
+                    }
+
+                    Character.UnicodeScript script = Character.UnicodeScript.of(codePoint);
+                    return script == Character.UnicodeScript.HANGUL
+                            || script == Character.UnicodeScript.HAN
+                            || script == Character.UnicodeScript.HIRAGANA
+                            || script == Character.UnicodeScript.KATAKANA;
+                });
+    }
+
+    private String buildTmdbProfileUrl(String profilePath) {
+        if (profilePath == null || profilePath.isBlank() || profilePath.equals("null")) {
+            return null;
+        }
+
+        return "https://image.tmdb.org/t/p/w300" + profilePath;
+    }
+
+    private LocalDate parseDate(String value) {
+        if (value == null || value.isBlank() || value.equals("null")) {
+            return null;
+        }
+
+        try {
+            return LocalDate.parse(value);
+        } catch (DateTimeParseException ignored) {
+            return null;
+        }
+    }
+
+    private String normalizeOptionalText(String value) {
+        if (value == null || value.isBlank() || value.equals("null")) {
+            return null;
+        }
+
+        return value.trim();
+    }
+
+    private String normalizeOptionalNonAsianText(String value) {
+        String normalized = normalizeOptionalText(value);
+
+        if (normalized == null || hasAsianLetters(normalized)) {
+            return null;
+        }
+
+        return normalized;
+    }
+
+    private record ActorImportData(
+            Long tmdbId,
+            String imdbId,
+            String fullName,
+            String originalName,
+            String photoUrl,
+            LocalDate birthDate,
+            String placeOfBirth,
+            String knownForDepartment,
+            Double popularity,
+            String biography
+    ) {
+        ActorImportData withBiography(String biography) {
+            return new ActorImportData(
+                    tmdbId,
+                    imdbId,
+                    fullName,
+                    originalName,
+                    photoUrl,
+                    birthDate,
+                    placeOfBirth,
+                    knownForDepartment,
+                    popularity,
+                    biography
+            );
+        }
+
+        ActorImportData merge(ActorImportData other) {
+            return new ActorImportData(
+                    firstNotNull(other.tmdbId, tmdbId),
+                    firstNotNull(other.imdbId, imdbId),
+                    firstNotNull(other.fullName, fullName),
+                    firstNotNull(other.originalName, originalName),
+                    firstNotNull(other.photoUrl, photoUrl),
+                    firstNotNull(other.birthDate, birthDate),
+                    firstNotNull(other.placeOfBirth, placeOfBirth),
+                    firstNotNull(other.knownForDepartment, knownForDepartment),
+                    firstNotNull(other.popularity, popularity),
+                    firstNotNull(other.biography, biography)
+            );
+        }
+
+        ActorImportData mergeMissing(ActorImportData other) {
+            return new ActorImportData(
+                    firstNotNull(tmdbId, other.tmdbId),
+                    firstNotNull(imdbId, other.imdbId),
+                    firstNotNull(fullName, other.fullName),
+                    firstNotNull(originalName, other.originalName),
+                    firstNotNull(photoUrl, other.photoUrl),
+                    firstNotNull(birthDate, other.birthDate),
+                    firstNotNull(placeOfBirth, other.placeOfBirth),
+                    firstNotNull(knownForDepartment, other.knownForDepartment),
+                    firstNotNull(popularity, other.popularity),
+                    firstNotNull(biography, other.biography)
+            );
+        }
+
+        private static <T> T firstNotNull(T first, T second) {
+            return first != null ? first : second;
         }
     }
 
@@ -297,7 +709,7 @@ public class TmdbImportService {
     }
 
     private void addTag(Dorama dorama, String tagName) {
-        if (tagName == null || tagName.isBlank()) {
+        if (tagName == null || tagName.isBlank() || hasAsianLetters(tagName)) {
             return;
         }
 

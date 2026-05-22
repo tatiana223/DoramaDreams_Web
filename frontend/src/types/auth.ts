@@ -9,6 +9,12 @@ export type RegisterRequest = {
   password: string;
 };
 
+export type ProfileUpdateRequest = {
+  username: string;
+  email: string;
+  password?: string;
+};
+
 export type AuthResponse = {
   token: string;
   userId: number;

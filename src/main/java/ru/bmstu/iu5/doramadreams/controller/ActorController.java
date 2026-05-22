@@ -7,6 +7,8 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import ru.bmstu.iu5.doramadreams.dto.ActorDto;
+import ru.bmstu.iu5.doramadreams.dto.ActorBiographyTranslationResultDto;
+import ru.bmstu.iu5.doramadreams.dto.DoramaDto;
 import ru.bmstu.iu5.doramadreams.service.ActorService;
 
 import java.util.List;
@@ -24,12 +26,24 @@ public class ActorController {
     public List<ActorDto> getAllActors() {
         return actorService.getAllActors();
     }
+
+    @Operation(summary = "Автоматически перевести английские биографии актёров на русский")
+    @PostMapping("/translate-biographies")
+    public ActorBiographyTranslationResultDto translateBiographies() {
+        return actorService.translateEnglishBiographiesToRussian();
+    }
     @Operation(summary = "Создать актёра")
 
     @PostMapping
     public ResponseEntity<ActorDto> createActor(@RequestBody ActorDto actorDto) {
         return ResponseEntity.status(HttpStatus.CREATED).body(actorService.createActor(actorDto));
     }
+    @Operation(summary = "Получить дорамы с участием актёра")
+    @GetMapping("/{id}/doramas")
+    public List<DoramaDto> getDoramasByActor(@PathVariable Long id) {
+        return actorService.getDoramasByActor(id);
+    }
+
     @Operation(summary = "Получить актёра по ID")
 
     @GetMapping("/{id}")

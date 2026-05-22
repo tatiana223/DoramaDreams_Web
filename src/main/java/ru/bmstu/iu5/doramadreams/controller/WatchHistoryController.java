@@ -4,7 +4,13 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.*;
+import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RestController;
 import ru.bmstu.iu5.doramadreams.dto.WatchHistoryDto;
 import ru.bmstu.iu5.doramadreams.exception.BadRequestException;
 import ru.bmstu.iu5.doramadreams.model.WatchStatus;
@@ -21,15 +27,15 @@ public class WatchHistoryController {
 
     private final WatchHistoryService watchHistoryService;
     private final CurrentUserService currentUserService;
-    @Operation(summary = "Получить мою историю просмотра")
 
+    @Operation(summary = "Получить мою историю просмотра")
     @GetMapping("/my")
     public List<WatchHistoryDto> getMyHistory() {
         Long userId = currentUserService.getCurrentUserId();
         return watchHistoryService.getUserHistory(userId);
     }
-    @Operation(summary = "Добавить или обновить прогресс просмотра")
 
+    @Operation(summary = "Добавить или обновить прогресс просмотра")
     @PostMapping("/add")
     public WatchHistoryDto addRecord(
             @RequestParam Long doramaId,
@@ -46,28 +52,8 @@ public class WatchHistoryController {
                 watchStatus
         );
     }
-    @Operation(summary = "Получить мою историю по статусу")
 
-    @GetMapping("/my/status/{status}")
-    public List<WatchHistoryDto> getHistoryByStatus(@PathVariable String status) {
-        WatchStatus watchStatus = parseWatchStatus(status);
-        Long userId = currentUserService.getCurrentUserId();
-        return watchHistoryService.getUserHistoryByStatus(userId, watchStatus);
-    }
-    @Operation(summary = "Получить историю просмотра дорамы")
-
-    @GetMapping("/dorama/{doramaId}")
-    public List<WatchHistoryDto> getDoramaHistory(@PathVariable Long doramaId) {
-        return watchHistoryService.getDoramaHistory(doramaId);
-    }
-    @Operation(summary = "Получить количество просмотров дорамы")
-
-    @GetMapping("/dorama/{doramaId}/count")
-    public Long getDoramaWatchCount(@PathVariable Long doramaId) {
-        return watchHistoryService.getDoramaWatchCount(doramaId);
-    }
     @Operation(summary = "Удалить запись из моей истории просмотра")
-
     @DeleteMapping("/my/dorama/{doramaId}")
     public ResponseEntity<Void> deleteHistoryRecord(@PathVariable Long doramaId) {
         Long userId = currentUserService.getCurrentUserId();

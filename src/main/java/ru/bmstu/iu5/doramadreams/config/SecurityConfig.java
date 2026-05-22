@@ -55,16 +55,21 @@ public class SecurityConfig {
                         ).permitAll()
 
                         .requestMatchers("/api/admin/**").hasRole("ADMIN")
+                        .requestMatchers(HttpMethod.POST, "/api/actors/**").hasRole("ADMIN")
+                        .requestMatchers(HttpMethod.PUT, "/api/actors/**").hasRole("ADMIN")
+                        .requestMatchers(HttpMethod.DELETE, "/api/actors/**").hasRole("ADMIN")
 
                         .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
 
                         .requestMatchers(HttpMethod.GET,
                                 "/api/doramas/**",
                                 "/api/genres/**",
+                                "/api/countries/**",
                                 "/api/actors/**",
                                 "/api/tags/**",
                                 "/api/reviews/dorama/**",
-                                "/api/ratings/dorama/**"
+                                "/api/actor-interactions/actors/*/comments",
+                                "/api/actor-interactions/actors/*/stats"
                         ).permitAll()
 
                         .anyRequest().authenticated()
