@@ -3,6 +3,7 @@ package ru.bmstu.iu5.doramadreams.service;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.stereotype.Service;
+import ru.bmstu.iu5.doramadreams.dto.AuthResponse;
 import ru.bmstu.iu5.doramadreams.dto.UserDto;
 import ru.bmstu.iu5.doramadreams.exception.BadRequestException;
 import ru.bmstu.iu5.doramadreams.exception.ConflictException;
@@ -20,6 +21,7 @@ public class UserService {
     private final UserRepository userRepository;
     private final UserMapper userMapper;
     private final BCryptPasswordEncoder passwordEncoder;
+    private final JwtService jwtService;
 
     public List<UserDto> getAllUsers() {
         return userMapper.toDtoList(userRepository.findAll());
@@ -37,6 +39,8 @@ public class UserService {
         }
 
         User user = userMapper.toEntity(userDto);
+        user.setUsername(userDto.getUsername().trim());
+        user.setEmail(userDto.getEmail().trim());
         user.setPasswordHash(passwordEncoder.encode(userDto.getPassword()));
 
         User savedUser = userRepository.save(user);
@@ -62,38 +66,60 @@ public class UserService {
     }
 
     public UserDto updateUser(Long id, UserDto userDto) {
+        User user = updateUserEntity(id, userDto);
+        return userMapper.toDto(user);
+    }
+
+    public AuthResponse updateMyProfile(Long id, UserDto userDto) {
+        User user = updateUserEntity(id, userDto);
+        String token = jwtService.generateToken(user);
+
+        return new AuthResponse(
+                token,
+                user.getUserId(),
+                user.getUsername(),
+                user.getEmail(),
+                user.getRole().name()
+        );
+    }
+
+    public void deleteUser(Long id) {
+        User user = findUserEntityById(id);
+        userRepository.delete(user);
+    }
+
+    private User updateUserEntity(Long id, UserDto userDto) {
         User user = findUserEntityById(id);
 
-        if (userDto.getUsername() != null && !userDto.getUsername().isBlank()) {
-            userRepository.findByUsername(userDto.getUsername())
+        if (userDto.getUsername() != null) {
+            String username = normalizeRequiredText(userDto.getUsername(), "Username не может быть пустым");
+
+            userRepository.findByUsername(username)
                     .filter(existingUser -> !existingUser.getUserId().equals(id))
                     .ifPresent(existingUser -> {
                         throw new ConflictException("Пользователь с таким username уже существует");
                     });
 
-            user.setUsername(userDto.getUsername());
+            user.setUsername(username);
         }
 
-        if (userDto.getEmail() != null && !userDto.getEmail().isBlank()) {
-            userRepository.findByEmail(userDto.getEmail())
+        if (userDto.getEmail() != null) {
+            String email = normalizeRequiredText(userDto.getEmail(), "Email не может быть пустым");
+
+            userRepository.findByEmail(email)
                     .filter(existingUser -> !existingUser.getUserId().equals(id))
                     .ifPresent(existingUser -> {
                         throw new ConflictException("Пользователь с таким email уже существует");
                     });
 
-            user.setEmail(userDto.getEmail());
+            user.setEmail(email);
         }
 
         if (userDto.getPassword() != null && !userDto.getPassword().isBlank()) {
             user.setPasswordHash(passwordEncoder.encode(userDto.getPassword()));
         }
 
-        return userMapper.toDto(userRepository.save(user));
-    }
-
-    public void deleteUser(Long id) {
-        User user = findUserEntityById(id);
-        userRepository.delete(user);
+        return userRepository.save(user);
     }
 
     private User findUserEntityById(Long id) {
@@ -113,5 +139,13 @@ public class UserService {
         if (userDto.getPassword() == null || userDto.getPassword().isBlank()) {
             throw new BadRequestException("Пароль не может быть пустым");
         }
+    }
+
+    private String normalizeRequiredText(String value, String errorMessage) {
+        if (value == null || value.isBlank()) {
+            throw new BadRequestException(errorMessage);
+        }
+
+        return value.trim();
     }
 }
