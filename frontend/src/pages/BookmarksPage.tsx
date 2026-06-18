@@ -7,6 +7,7 @@ import {
   Film,
   FolderOpen,
   Heart,
+  Info,
   PlayCircle,
   Sparkles,
   Star,
@@ -411,7 +412,15 @@ function BookmarkCard({
         </p>
 
         <div className="mt-3 min-h-[58px] rounded-[1rem] bg-background/70 p-2.5 text-xs text-muted-foreground dark:bg-white/10 dark:text-white/60">
-          {history ? (
+          {activeTab === "recommendations" && dorama.recommendationReason ? (
+            <>
+              <p className="inline-flex items-center gap-1 font-bold text-foreground dark:text-white">
+                <Info className="h-3.5 w-3.5" />
+                Почему рекомендовано
+              </p>
+              <p className="mt-1 line-clamp-3 leading-5">{dorama.recommendationReason}</p>
+            </>
+          ) : history ? (
             <>
               <p>
                 <span className="font-bold text-foreground dark:text-white">Статус:</span> {statusLabels[history.status]}

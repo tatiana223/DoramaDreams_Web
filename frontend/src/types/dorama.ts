@@ -15,6 +15,10 @@ export type Dorama = {
   genres: string[];
   tags?: string[];
   actors?: Actor[];
+  recommendationSource?: "ML_SCORE" | "FALLBACK" | "COLD_START" | string | null;
+  recommendationReason?: string | null;
+  recommendationScore?: number | null;
+  recommendationModelVersion?: string | null;
 };
 
 export type Actor = {

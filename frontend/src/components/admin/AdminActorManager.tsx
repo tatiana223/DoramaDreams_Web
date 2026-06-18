@@ -191,7 +191,22 @@ export function AdminActorManager() {
     const fullName = form.fullName.trim();
 
     if (!fullName) {
-      setError("Укажи имя актёра");
+      setError("Имя актёра обязательно");
+      return;
+    }
+
+    if (fullName.length < 2) {
+      setError("Имя актёра должно содержать минимум 2 символа");
+      return;
+    }
+
+    if (form.photoUrl.trim() && !isHttpUrl(form.photoUrl)) {
+      setError("Ссылка на фото актёра должна начинаться с http:// или https://");
+      return;
+    }
+
+    if (form.birthDate.trim() && isFutureDate(form.birthDate)) {
+      setError("Дата рождения актёра не может быть позже текущей даты");
       return;
     }
 
@@ -203,8 +218,18 @@ export function AdminActorManager() {
       return;
     }
 
+    if (tmdbId !== null && tmdbId < 1) {
+      setError("TMDB ID должен быть положительным целым числом");
+      return;
+    }
+
     if (popularity === false) {
       setError("Популярность должна быть числом");
+      return;
+    }
+
+    if (popularity !== null && popularity < 0) {
+      setError("Популярность не может быть отрицательной");
       return;
     }
 
@@ -421,12 +446,17 @@ export function AdminActorManager() {
                   <div className="flex items-center gap-3 rounded-2xl border border-border/70 bg-card/80 px-4 py-3 dark:border-white/10 dark:bg-black/20">
                     <LinkIcon className="h-4 w-4 shrink-0 text-muted-foreground" />
                     <input
+                      type="url"
+                      inputMode="url"
                       value={form.photoUrl}
                       onChange={(event) => updateForm("photoUrl", event.target.value)}
                       placeholder="https://.../actor.jpg"
                       className="w-full min-w-0 bg-transparent text-sm font-semibold outline-none placeholder:text-muted-foreground"
                     />
                   </div>
+                  <span className="text-xs font-semibold text-muted-foreground dark:text-white/45">
+                    Можно оставить пустым. Если указываешь ссылку, она должна начинаться с http:// или https://.
+                  </span>
                 </label>
 
                 <label className="grid gap-2">
@@ -828,6 +858,34 @@ function normalizeFloat(value: string) {
 
   const parsed = Number(trimmed);
   return Number.isFinite(parsed) ? parsed : false;
+}
+
+function isHttpUrl(value: string) {
+  const trimmed = value.trim();
+
+  if (!trimmed) {
+    return true;
+  }
+
+  try {
+    const parsed = new URL(trimmed);
+    return parsed.protocol === "http:" || parsed.protocol === "https:";
+  } catch {
+    return false;
+  }
+}
+
+function isFutureDate(value: string) {
+  const parsed = new Date(value);
+
+  if (Number.isNaN(parsed.getTime())) {
+    return false;
+  }
+
+  const today = new Date();
+  today.setHours(23, 59, 59, 999);
+
+  return parsed > today;
 }
 
 function refreshActorInDoramas(doramas: Dorama[], actor: Actor) {

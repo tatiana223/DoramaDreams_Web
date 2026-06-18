@@ -533,7 +533,18 @@ export function removeMockFavorite(doramaId: number): void {
 }
 
 export function getMockRecommendations(): Dorama[] {
-  return getMockTopRatedDoramas(8);
+  return getMockTopRatedDoramas(8).map((dorama, index) => ({
+    ...dorama,
+    recommendationSource: index < 3 ? "ML_SCORE" : index < 6 ? "FALLBACK" : "COLD_START",
+    recommendationReason:
+      index < 3
+        ? "Эта дорама попала в персональную подборку, потому что система рассчитала, что она может соответствовать вашим интересам."
+        : index < 6
+          ? `Эта дорама похожа на то, что вам уже нравилось: жанры: ${dorama.genres.slice(0, 2).join(", ")}.`
+          : "Эта дорама популярна у зрителей и имеет высокий рейтинг, поэтому предложена для начального знакомства с каталогом.",
+    recommendationScore: Math.max(0.5, 0.98 - index * 0.04),
+    recommendationModelVersion: index < 3 ? "mock_v1" : null,
+  }));
 }
 
 export function getMockHistory(): WatchHistoryItem[] {

@@ -14,6 +14,7 @@ import ru.bmstu.iu5.doramadreams.model.Dorama;
 import ru.bmstu.iu5.doramadreams.repository.ActorRepository;
 import ru.bmstu.iu5.doramadreams.repository.DoramaRepository;
 
+import java.time.LocalDate;
 import java.util.List;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -49,7 +50,7 @@ public class ActorService {
     }
 
     public ActorDto createActor(ActorDto actorDto) {
-        validateActor(actorDto);
+        validateActorForCreate(actorDto);
 
         String normalizedFullName = actorDto.getFullName().trim();
         if (actorRepository.existsByFullNameIgnoreCase(normalizedFullName)) {
@@ -72,6 +73,7 @@ public class ActorService {
 
     public ActorDto updateActor(Long id, ActorDto actorDto) {
         Actor actor = findActorEntityById(id);
+        validateActorForUpdate(actorDto);
 
         if (actorDto.getFullName() != null && !actorDto.getFullName().isBlank()) {
             String normalizedFullName = actorDto.getFullName().trim();
@@ -198,9 +200,51 @@ public class ActorService {
                 .orElseThrow(() -> new ResourceNotFoundException("Актёр с таким id не найден"));
     }
 
-    private void validateActor(ActorDto actorDto) {
+    private void validateActorForCreate(ActorDto actorDto) {
         if (actorDto.getFullName() == null || actorDto.getFullName().isBlank()) {
             throw new BadRequestException("Имя актёра обязательно");
+        }
+
+        validateActorCommonFields(actorDto);
+    }
+
+    private void validateActorForUpdate(ActorDto actorDto) {
+        if (actorDto.getFullName() != null && actorDto.getFullName().isBlank()) {
+            throw new BadRequestException("Имя актёра обязательно");
+        }
+
+        validateActorCommonFields(actorDto);
+    }
+
+    private void validateActorCommonFields(ActorDto actorDto) {
+        if (actorDto.getFullName() != null && actorDto.getFullName().trim().length() < 2) {
+            throw new BadRequestException("Имя актёра должно содержать минимум 2 символа");
+        }
+
+        validateOptionalHttpUrl(actorDto.getPhotoUrl(), "Ссылка на фото актёра");
+
+        if (actorDto.getBirthDate() != null && actorDto.getBirthDate().isAfter(LocalDate.now())) {
+            throw new BadRequestException("Дата рождения актёра не может быть позже текущей даты");
+        }
+
+        if (actorDto.getTmdbId() != null && actorDto.getTmdbId() < 1) {
+            throw new BadRequestException("TMDB ID должен быть положительным целым числом");
+        }
+
+        if (actorDto.getPopularity() != null && actorDto.getPopularity() < 0) {
+            throw new BadRequestException("Популярность не может быть отрицательной");
+        }
+    }
+
+    private void validateOptionalHttpUrl(String value, String fieldName) {
+        if (value == null || value.isBlank()) {
+            return;
+        }
+
+        String normalizedValue = value.trim();
+
+        if (!normalizedValue.startsWith("http://") && !normalizedValue.startsWith("https://")) {
+            throw new BadRequestException(fieldName + " должна начинаться с http:// или https://");
         }
     }
 

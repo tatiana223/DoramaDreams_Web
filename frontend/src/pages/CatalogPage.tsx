@@ -8,6 +8,7 @@ import {
   FolderOpen,
   Globe2,
   Heart,
+  Info,
   RotateCcw,
   Search,
   SlidersHorizontal,
@@ -706,6 +707,20 @@ function DoramaCard({
             ))}
           </div>
         )}
+
+        {dorama.recommendationReason && (
+          <details className="mt-3 rounded-2xl border border-violet-300/30 bg-violet-500/10 p-3 text-xs text-violet-950 dark:border-violet-300/20 dark:bg-violet-400/10 dark:text-violet-50">
+            <summary className="flex cursor-pointer list-none items-center gap-2 font-black">
+              <Info className="h-3.5 w-3.5" />
+              Почему рекомендовано?
+            </summary>
+            <p className="mt-2 leading-5 text-violet-950/75 dark:text-violet-50/75">{dorama.recommendationReason}</p>
+            <p className="mt-2 text-[11px] font-bold text-violet-950/60 dark:text-violet-50/55">
+              Тип подбора: {getRecommendationSourceLabel(dorama.recommendationSource)}
+            </p>
+          </details>
+        )}
+
         <div className="mt-auto grid grid-cols-2 gap-2 pt-4">
           <Link
             to={`/doramas/${dorama.doramaId}`}
@@ -756,4 +771,17 @@ function EmptyCatalog({ text }: { text: string }) {
 
 function formatRating(rating: number | null) {
   return rating == null ? "—" : rating.toFixed(1);
+}
+
+function getRecommendationSourceLabel(source?: string | null) {
+  switch (source) {
+    case "ML_SCORE":
+      return "по вашим предпочтениям";
+    case "FALLBACK":
+      return "по жанрам, темам и актёрам";
+    case "COLD_START":
+      return "популярное для начала";
+    default:
+      return "рекомендация";
+  }
 }

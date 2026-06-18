@@ -45,6 +45,7 @@ public class SecurityConfig {
                                 "/api/auth/register",
                                 "/api/auth/login"
                         ).permitAll()
+                        .requestMatchers(HttpMethod.POST, "/api/ai-chat").permitAll()
 
                         .requestMatchers(
                                 "/swagger-ui.html",

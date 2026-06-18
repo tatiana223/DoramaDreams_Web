@@ -3,6 +3,7 @@ import { Link, NavLink, useLocation, useNavigate } from "react-router";
 import { Bookmark, ChevronDown, Home, LogOut, Menu, Search, ShieldCheck, Sparkles, User, UsersRound } from "lucide-react";
 import { clearAuthData, getCurrentUser } from "@/api/authStorage";
 import { ThemeToggle } from "@/components/app/ThemeToggle";
+import { AiChatWidget } from "@/components/app/AiChatWidget";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -138,6 +139,8 @@ export function AppShell({ children }: { children: ReactNode }) {
       </header>
 
       <main>{children}</main>
+
+      <AiChatWidget />
 
       <nav
         className="fixed inset-x-3 bottom-3 z-40 grid gap-1 rounded-[1.6rem] border border-border/70 bg-background/90 p-2 shadow-2xl backdrop-blur-xl md:hidden"

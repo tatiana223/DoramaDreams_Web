@@ -35,3 +35,7 @@ minio:
 
 server:
   port: 8080
+
+ai:
+  ollama:
+    enabled: false

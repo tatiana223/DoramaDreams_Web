@@ -23,4 +23,8 @@ public class DoramaDto {
     private List<String> genres;
     private List<String> tags;
     private List<ActorDto> actors;
+    private String recommendationSource;
+    private String recommendationReason;
+    private Double recommendationScore;
+    private String recommendationModelVersion;
 }

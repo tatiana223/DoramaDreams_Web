@@ -6,474 +6,149 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import ru.bmstu.iu5.doramadreams.dto.DoramaDto;
 import ru.bmstu.iu5.doramadreams.model.*;
-import ru.bmstu.iu5.doramadreams.repository.DoramaRepository;
-import ru.bmstu.iu5.doramadreams.repository.FavoriteRepository;
-import ru.bmstu.iu5.doramadreams.repository.RatingRepository;
-import ru.bmstu.iu5.doramadreams.repository.UserRecommendationRepository;
-import ru.bmstu.iu5.doramadreams.repository.UserActorInteractionRepository;
-import ru.bmstu.iu5.doramadreams.repository.WatchHistoryRepository;
-
+import ru.bmstu.iu5.doramadreams.repository.*;
 import java.util.*;
 import java.util.function.Function;
 
 @Service
 public class RecommendationService {
-
     private static final int DEFAULT_LIMIT = 20;
     private static final int OFFLINE_LOOKAHEAD_LIMIT = 200;
 
-    @Autowired
-    private FavoriteRepository favoriteRepository;
+    @Autowired private FavoriteRepository favoriteRepository;
+    @Autowired private DoramaRepository doramaRepository;
+    @Autowired private RatingRepository ratingRepository;
+    @Autowired private WatchHistoryRepository watchHistoryRepository;
+    @Autowired private DoramaDtoService doramaDtoService;
+    @Autowired private UserRecommendationRepository userRecommendationRepository;
+    @Autowired private UserActorInteractionRepository userActorInteractionRepository;
 
-    @Autowired
-    private DoramaRepository doramaRepository;
-
-    @Autowired
-    private RatingRepository ratingRepository;
-
-    @Autowired
-    private WatchHistoryRepository watchHistoryRepository;
-
-    @Autowired
-    private DoramaDtoService doramaDtoService;
-
-    @Autowired
-    private UserRecommendationRepository userRecommendationRepository;
-
-    @Autowired
-    private UserActorInteractionRepository userActorInteractionRepository;
-
-    /**
-     * Главная логика рекомендаций:
-     * 1. Для пользователей, которые были в offline ML-обучении, сначала используем готовый ML-score.
-     * 2. Если ML-рекомендаций нет или их не хватает после исключения уже выбранных дорам,
-     *    достраиваем выдачу online fallback'ом по текущим действиям пользователя.
-     * 3. Для совсем новых пользователей без действий отдаём cold-start рекомендации по общей популярности.
-     */
     @Transactional(readOnly = true)
     public List<DoramaDto> getPersonalRecommendations(Long userId) {
-        List<Favorite> favorites = favoriteRepository.findByUser_UserId(userId);
-        List<Rating> ratings = ratingRepository.findByUser_UserId(userId);
-        List<WatchHistory> watchHistory = watchHistoryRepository.findByUser_UserIdOrderByUpdatedAtDesc(userId);
-        List<UserActorInteraction> actorInteractions = userActorInteractionRepository.findByUser_UserIdAndInteractionTypeIn(
-                userId,
-                List.of(
-                        UserActorInteractionType.FAVORITE,
-                        UserActorInteractionType.RATING,
-                        UserActorInteractionType.COMMENT,
-                        UserActorInteractionType.VIEW
-                )
-        );
+        var favorites = favoriteRepository.findByUser_UserId(userId);
+        var ratings = ratingRepository.findByUser_UserId(userId);
+        var watchHistory = watchHistoryRepository.findByUser_UserIdOrderByUpdatedAtDesc(userId);
+        var actorInteractions = userActorInteractionRepository.findByUser_UserIdAndInteractionTypeIn(userId,
+                List.of(UserActorInteractionType.FAVORITE, UserActorInteractionType.RATING, UserActorInteractionType.COMMENT, UserActorInteractionType.VIEW));
 
         Set<Long> excludedIds = buildExcludedDoramaIds(favorites, ratings, watchHistory);
-        LinkedHashMap<Long, Dorama> result = new LinkedHashMap<>();
+        PreferenceProfile profile = buildUserPreferenceProfile(favorites, ratings, watchHistory, actorInteractions);
+        LinkedHashMap<Long, RecommendedDorama> result = new LinkedHashMap<>();
 
-        addRecommendations(
-                result,
-                getOfflineMlRecommendations(userId, excludedIds, DEFAULT_LIMIT),
-                DEFAULT_LIMIT
-        );
+        // 1. Уровень: Офлайн ML-рекомендации
+        addRecommendations(result, getOfflineMlRecommendations(userId, excludedIds, profile), DEFAULT_LIMIT);
 
+        // 2. Уровень: Онлайн Fallback по контенту (если не хватило ML)
         if (result.size() < DEFAULT_LIMIT) {
-            Set<Long> excludedForFallback = new HashSet<>(excludedIds);
-            excludedForFallback.addAll(result.keySet());
-
-            addRecommendations(
-                    result,
-                    getOnlineContentFallback(
-                            favorites,
-                            ratings,
-                            watchHistory,
-                            actorInteractions,
-                            excludedForFallback,
-                            DEFAULT_LIMIT - result.size()
-                    ),
-                    DEFAULT_LIMIT
-            );
+            Set<Long> fallbackExcludes = new HashSet<>(excludedIds); fallbackExcludes.addAll(result.keySet());
+            addRecommendations(result, getOnlineContentFallback(profile, fallbackExcludes, DEFAULT_LIMIT - result.size()), DEFAULT_LIMIT);
         }
 
+        // 3. Уровень: Стратегия Холодного старта (популярное для новых пользователей)
         if (result.size() < DEFAULT_LIMIT) {
-            Set<Long> excludedForColdStart = new HashSet<>(excludedIds);
-            excludedForColdStart.addAll(result.keySet());
-
-            addRecommendations(
-                    result,
-                    getColdStartRecommendations(excludedForColdStart, DEFAULT_LIMIT - result.size()),
-                    DEFAULT_LIMIT
-            );
+            Set<Long> coldExcludes = new HashSet<>(excludedIds); coldExcludes.addAll(result.keySet());
+            addRecommendations(result, getColdStartRecommendations(coldExcludes, DEFAULT_LIMIT - result.size()), DEFAULT_LIMIT);
         }
 
-        return doramaDtoService.toDtoList(new ArrayList<>(result.values()));
+        return result.values().stream().map(this::toRecommendationDto).toList();
     }
 
-    private void addRecommendations(
-            LinkedHashMap<Long, Dorama> result,
-            List<Dorama> candidates,
-            int limit
-    ) {
-        for (Dorama dorama : candidates) {
-            if (dorama == null || dorama.getDoramaId() == null) {
-                continue;
-            }
-
-            result.putIfAbsent(dorama.getDoramaId(), dorama);
-
-            if (result.size() >= limit) {
-                break;
-            }
-        }
+    private Set<Long> buildExcludedDoramaIds(List<Favorite> favs, List<Rating> rts, List<WatchHistory> hist) {
+        Set<Long> excluded = new HashSet<>();
+        favs.stream().filter(f -> f.getDorama() != null).forEach(f -> excluded.add(f.getDorama().getDoramaId()));
+        rts.stream().filter(r -> r.getDorama() != null).forEach(r -> excluded.add(r.getDorama().getDoramaId()));
+        hist.stream().filter(h -> h.getDorama() != null).forEach(h -> excluded.add(h.getDorama().getDoramaId()));
+        return excluded;
     }
 
-    private Set<Long> buildExcludedDoramaIds(
-            List<Favorite> favorites,
-            List<Rating> ratings,
-            List<WatchHistory> watchHistory
-    ) {
-        Set<Long> excludedIds = new HashSet<>();
-
-        favorites.forEach(favorite -> {
-            if (favorite.getDorama() != null) {
-                excludedIds.add(favorite.getDorama().getDoramaId());
-            }
-        });
-
-        ratings.forEach(rating -> {
-            if (rating.getDorama() != null) {
-                excludedIds.add(rating.getDorama().getDoramaId());
-            }
-        });
-
-        watchHistory.forEach(history -> {
-            if (history.getDorama() != null) {
-                excludedIds.add(history.getDorama().getDoramaId());
-            }
-        });
-
-        return excludedIds;
-    }
-
-    private List<Dorama> getOfflineMlRecommendations(Long userId, Set<Long> excludedIds, int limit) {
-        List<UserRecommendation> recommendations =
-                userRecommendationRepository.findByUserIdOrderByScoreDesc(
-                        userId,
-                        PageRequest.of(0, OFFLINE_LOOKAHEAD_LIMIT)
-                );
-
-        if (recommendations.isEmpty()) {
-            return Collections.emptyList();
-        }
-
-        return recommendations.stream()
-                .filter(recommendation -> !excludedIds.contains(recommendation.getDoramaId()))
-                .map(UserRecommendation::getDorama)
-                .filter(Objects::nonNull)
-                .limit(limit)
+    private List<RecommendedDorama> getOfflineMlRecommendations(Long userId, Set<Long> excluded, PreferenceProfile prof) {
+        return userRecommendationRepository.findByUserIdOrderByScoreDesc(userId, PageRequest.of(0, OFFLINE_LOOKAHEAD_LIMIT))
+                .stream().filter(r -> !excluded.contains(r.getDoramaId()) && r.getDorama() != null).limit(DEFAULT_LIMIT)
+                .map(r -> new RecommendedDorama(r.getDorama(), "ML_SCORE", "Рекомендовано на основе ML-модели предпочтений.", r.getScore(), r.getModelVersion()))
                 .toList();
     }
 
-    private List<Dorama> getOnlineContentFallback(
-            List<Favorite> favorites,
-            List<Rating> ratings,
-            List<WatchHistory> watchHistory,
-            List<UserActorInteraction> actorInteractions,
-            Set<Long> excludedIds,
-            int limit
-    ) {
-        Map<String, Double> userGenreProfile = new HashMap<>();
-        Map<String, Double> userTagProfile = new HashMap<>();
-        Map<String, Double> userActorProfile = new HashMap<>();
+    private List<RecommendedDorama> getOnlineContentFallback(PreferenceProfile prof, Set<Long> excluded, int limit) {
+        if (!prof.hasData()) return Collections.emptyList();
+        List<DoramaScore> scored = new ArrayList<>();
 
-        for (Favorite favorite : favorites) {
-            addDoramaToProfile(
-                    favorite.getDorama(),
-                    4.0,
-                    userGenreProfile,
-                    userTagProfile,
-                    userActorProfile
-            );
+        for (Dorama d : doramaRepository.findAll()) {
+            if (excluded.contains(d.getDoramaId()) || (d.getGenres().isEmpty() && d.getTags().isEmpty() && d.getActors().isEmpty())) continue;
+            double contentScore = 0.30 * calculateProfileMatch(d.getGenres(), Genre::getName, prof.genreProfile())
+                    + 0.55 * calculateProfileMatch(d.getTags(), Tag::getName, prof.tagProfile())
+                    + 0.15 * calculateProfileMatch(d.getActors(), Actor::getFullName, prof.actorProfile());
+            double totalScore = 0.75 * contentScore + 0.25 * calculatePopularityScore(d.getDoramaId());
+            scored.add(new DoramaScore(d, totalScore, "Похоже на то, что вам уже нравилось (совпадение жанров/тегов)."));
         }
-
-        for (Rating rating : ratings) {
-            double weight = getRatingWeight(rating.getScore());
-
-            if (weight > 0) {
-                addDoramaToProfile(
-                        rating.getDorama(),
-                        weight,
-                        userGenreProfile,
-                        userTagProfile,
-                        userActorProfile
-                );
-            }
-        }
-
-        for (WatchHistory history : watchHistory) {
-            double weight = getWatchStatusWeight(history.getStatus());
-
-            if (weight > 0) {
-                addDoramaToProfile(
-                        history.getDorama(),
-                        weight,
-                        userGenreProfile,
-                        userTagProfile,
-                        userActorProfile
-                );
-            }
-        }
-
-        for (UserActorInteraction interaction : actorInteractions) {
-            addActorInteractionToProfile(interaction, userActorProfile);
-        }
-
-        boolean hasUserProfile =
-                !userGenreProfile.isEmpty()
-                        || !userTagProfile.isEmpty()
-                        || !userActorProfile.isEmpty();
-
-        if (!hasUserProfile) {
-            return Collections.emptyList();
-        }
-
-        List<DoramaScore> scoredDoramas = new ArrayList<>();
-
-        for (Dorama dorama : doramaRepository.findAll()) {
-            Long doramaId = dorama.getDoramaId();
-
-            if (excludedIds.contains(doramaId)) {
-                continue;
-            }
-
-            boolean hasContent =
-                    !dorama.getGenres().isEmpty()
-                            || !dorama.getTags().isEmpty()
-                            || !dorama.getActors().isEmpty();
-
-            if (!hasContent) {
-                continue;
-            }
-
-            double contentScore = calculateContentScore(
-                    dorama,
-                    userGenreProfile,
-                    userTagProfile,
-                    userActorProfile
-            );
-
-            double popularityScore = calculatePopularityScore(doramaId);
-
-            double fallbackScore =
-                    0.75 * contentScore
-                            + 0.25 * popularityScore;
-
-            scoredDoramas.add(new DoramaScore(dorama, fallbackScore));
-        }
-
-        return scoredDoramas.stream()
-                .sorted(Comparator.comparing(DoramaScore::score).reversed())
-                .limit(limit)
-                .map(DoramaScore::dorama)
-                .toList();
+        return scored.stream().sorted(Comparator.comparing(DoramaScore::score).reversed()).limit(limit)
+                .map(s -> new RecommendedDorama(s.dorama(), "FALLBACK", s.reason(), s.score(), null)).toList();
     }
 
-    private List<Dorama> getColdStartRecommendations(Set<Long> excludedIds, int limit) {
-        return doramaRepository.findAll().stream()
-                .filter(dorama -> dorama.getDoramaId() != null)
-                .filter(dorama -> !excludedIds.contains(dorama.getDoramaId()))
-                .map(dorama -> new DoramaScore(dorama, calculatePopularityScore(dorama.getDoramaId())))
-                .sorted(Comparator.comparing(DoramaScore::score).reversed())
-                .limit(limit)
-                .map(DoramaScore::dorama)
-                .toList();
+    private List<RecommendedDorama> getColdStartRecommendations(Set<Long> excluded, int limit) {
+        return doramaRepository.findAll().stream().filter(d -> d.getDoramaId() != null && !excluded.contains(d.getDoramaId()))
+                .map(d -> new DoramaScore(d, calculatePopularityScore(d.getDoramaId()), "Популярно среди зрителей."))
+                .sorted(Comparator.comparing(DoramaScore::score).reversed()).limit(limit)
+                .map(s -> new RecommendedDorama(s.dorama(), "COLD_START", s.reason(), s.score(), null)).toList();
     }
 
-    private void addActorInteractionToProfile(
-            UserActorInteraction interaction,
-            Map<String, Double> actorProfile
-    ) {
-        if (interaction == null || interaction.getActor() == null) {
-            return;
-        }
-
-        double weight = getActorInteractionWeight(interaction);
-        if (weight <= 0) {
-            return;
-        }
-
-        addWeight(actorProfile, interaction.getActor().getFullName(), weight);
+    private PreferenceProfile buildUserPreferenceProfile(List<Favorite> favs, List<Rating> rts, List<WatchHistory> hist, List<UserActorInteraction> actors) {
+        Map<String, Double> genres = new HashMap<>(), tags = new HashMap<>(), acts = new HashMap<>();
+        favs.forEach(f -> addDoramaToProfile(f.getDorama(), 4.0, genres, tags, acts));
+        rts.forEach(r -> { double w = r.getScore() >= 8 ? 3.0 : (r.getScore() >= 6 ? 2.0 : (r.getScore() >= 4 ? 1.0 : 0.0)); if(w>0) addDoramaToProfile(r.getDorama(), w, genres, tags, acts); });
+        hist.forEach(h -> { double w = h.getStatus() == WatchStatus.COMPLETED ? 3.0 : (h.getStatus() == WatchStatus.WATCHING ? 2.5 : 1.5); addDoramaToProfile(h.getDorama(), w, genres, tags, acts); });
+        actors.forEach(i -> {
+            if (i == null || i.getActor() == null || i.getInteractionType() == null) return;
+            double w = switch(i.getInteractionType()) { case FAVORITE -> 5.0; case COMMENT -> 3.0; case VIEW -> 0.75; case RATING -> (i.getRating() != null && i.getRating() >= 5) ? Math.min(5.0, i.getRating()/2.0) : 0.0; };
+            if (w > 0) addWeight(acts, i.getActor().getFullName(), w);
+        });
+        return new PreferenceProfile(genres, tags, acts);
     }
 
-    private double getActorInteractionWeight(UserActorInteraction interaction) {
-        if (interaction.getInteractionType() == null) {
-            return 0.0;
-        }
-
-        return switch (interaction.getInteractionType()) {
-            case FAVORITE -> 5.0;
-            case RATING -> getActorRatingWeight(interaction.getRating());
-            case COMMENT -> 3.0;
-            case VIEW -> 0.75;
-        };
+    private void addDoramaToProfile(Dorama d, double w, Map<String, Double> gen, Map<String, Double> tg, Map<String, Double> act) {
+        if (d == null) return;
+        d.getGenres().forEach(g -> addWeight(gen, g.getName(), w));
+        d.getTags().forEach(t -> addWeight(tg, t.getName(), w));
+        d.getActors().forEach(a -> addWeight(act, a.getFullName(), w * 0.5));
     }
 
-    private double getActorRatingWeight(Integer rating) {
-        if (rating == null || rating < 5) {
-            return 0.0;
-        }
-
-        return Math.min(5.0, rating / 2.0);
+    private void addWeight(Map<String, Double> profile, String key, double w) {
+        if (key != null && !key.isBlank()) profile.merge(key.trim().toLowerCase(), w, Double::sum);
     }
 
-    private void addDoramaToProfile(
-            Dorama dorama,
-            double weight,
-            Map<String, Double> genreProfile,
-            Map<String, Double> tagProfile,
-            Map<String, Double> actorProfile
-    ) {
-        if (dorama == null) {
-            return;
-        }
-
-        dorama.getGenres().forEach(genre ->
-                addWeight(genreProfile, genre.getName(), weight)
-        );
-
-        dorama.getTags().forEach(tag ->
-                addWeight(tagProfile, tag.getName(), weight)
-        );
-
-        dorama.getActors().forEach(actor ->
-                addWeight(actorProfile, actor.getFullName(), weight * 0.5)
-        );
-    }
-
-    private void addWeight(Map<String, Double> profile, String key, double weight) {
-        if (key == null || key.isBlank()) {
-            return;
-        }
-
-        String normalizedKey = key.trim().toLowerCase();
-
-        profile.put(
-                normalizedKey,
-                profile.getOrDefault(normalizedKey, 0.0) + weight
-        );
-    }
-
-    private double getRatingWeight(Integer score) {
-        if (score == null) {
-            return 0.0;
-        }
-
-        if (score >= 8) {
-            return 3.0;
-        }
-
-        if (score >= 6) {
-            return 2.0;
-        }
-
-        if (score >= 4) {
-            return 1.0;
-        }
-
-        return 0.0;
-    }
-
-    private double getWatchStatusWeight(WatchStatus status) {
-        if (status == null) {
-            return 0.0;
-        }
-
-        return switch (status) {
-            case COMPLETED -> 3.0;
-            case WATCHING -> 2.5;
-            case PLANNED -> 1.5;
-            case DROPPED -> 0.0;
-        };
-    }
-
-    private double calculateContentScore(
-            Dorama candidate,
-            Map<String, Double> genreProfile,
-            Map<String, Double> tagProfile,
-            Map<String, Double> actorProfile
-    ) {
-        double genreScore = calculateProfileMatch(
-                candidate.getGenres(),
-                Genre::getName,
-                genreProfile
-        );
-
-        double tagScore = calculateProfileMatch(
-                candidate.getTags(),
-                Tag::getName,
-                tagProfile
-        );
-
-        double actorScore = calculateProfileMatch(
-                candidate.getActors(),
-                Actor::getFullName,
-                actorProfile
-        );
-
-        return 0.30 * genreScore
-                + 0.55 * tagScore
-                + 0.15 * actorScore;
-    }
-
-    private <T> double calculateProfileMatch(
-            Set<T> values,
-            Function<T, String> nameExtractor,
-            Map<String, Double> profile
-    ) {
-        if (values == null || values.isEmpty() || profile.isEmpty()) {
-            return 0.0;
-        }
-
-        double profileWeightSum = profile.values().stream()
-                .mapToDouble(Double::doubleValue)
-                .sum();
-
-        if (profileWeightSum == 0.0) {
-            return 0.0;
-        }
-
-        double matchedWeight = values.stream()
-                .map(nameExtractor)
-                .filter(Objects::nonNull)
-                .map(value -> value.trim().toLowerCase())
-                .mapToDouble(value -> profile.getOrDefault(value, 0.0))
-                .sum();
-
-        return Math.min(1.0, matchedWeight / profileWeightSum);
+    private <T> double calculateProfileMatch(Set<T> values, Function<T, String> extractor, Map<String, Double> profile) {
+        if (values == null || values.isEmpty() || profile.isEmpty()) return 0.0;
+        double sum = profile.values().stream().mapToDouble(Double::doubleValue).sum();
+        if (sum == 0.0) return 0.0;
+        double matched = values.stream().map(extractor).filter(Objects::nonNull).map(v -> v.trim().toLowerCase()).mapToDouble(v -> profile.getOrDefault(v, 0.0)).sum();
+        return Math.min(1.0, matched / sum);
     }
 
     private double calculatePopularityScore(Long doramaId) {
-        Double averageRating = ratingRepository.findAverageScoreByDoramaId(doramaId);
-        Long ratingCount = ratingRepository.countByDoramaId(doramaId);
-        Long favoriteCount = favoriteRepository.countByDorama_DoramaId(doramaId);
-        Long watchCount = watchHistoryRepository.countByDorama_DoramaId(doramaId);
-
-        double averageScore = averageRating == null ? 0.0 : Math.min(1.0, averageRating / 10.0);
-        double ratingCountScore = normalizeCount(ratingCount);
-        double favoriteCountScore = normalizeCount(favoriteCount);
-        double watchCountScore = normalizeCount(watchCount);
-
-        return 0.50 * averageScore
-                + 0.20 * ratingCountScore
-                + 0.15 * favoriteCountScore
-                + 0.15 * watchCountScore;
+        Double avgRating = ratingRepository.findAverageScoreByDoramaId(doramaId);
+        double score = avgRating == null ? 0.0 : Math.min(1.0, avgRating / 10.0);
+        double rCount = Math.min(1.0, Math.log1p(ratingRepository.countByDoramaId(doramaId)) / Math.log1p(50.0));
+        double fCount = Math.min(1.0, Math.log1p(favoriteRepository.countByDorama_DoramaId(doramaId)) / Math.log1p(50.0));
+        double wCount = Math.min(1.0, Math.log1p(watchHistoryRepository.countByDorama_DoramaId(doramaId)) / Math.log1p(50.0));
+        return 0.50 * score + 0.20 * rCount + 0.15 * fCount + 0.15 * wCount;
     }
 
-    private double normalizeCount(Long count) {
-        if (count == null || count <= 0) {
-            return 0.0;
+    private void addRecommendations(LinkedHashMap<Long, RecommendedDorama> res, List<RecommendedDorama> candidates, int limit) {
+        for (var c : candidates) {
+            if (c != null && c.dorama() != null && c.dorama().getDoramaId() != null) res.putIfAbsent(c.dorama().getDoramaId(), c);
+            if (res.size() >= limit) break;
         }
-
-        return Math.min(1.0, Math.log1p(count) / Math.log1p(50.0));
     }
 
-    private record DoramaScore(Dorama dorama, double score) {
+    private DoramaDto toRecommendationDto(RecommendedDorama r) {
+        DoramaDto dto = doramaDtoService.toDto(r.dorama());
+        dto.setRecommendationSource(r.source()); dto.setRecommendationReason(r.reason());
+        dto.setRecommendationScore(r.score()); dto.setRecommendationModelVersion(r.modelVersion());
+        return dto;
     }
+
+    private record RecommendedDorama(Dorama dorama, String source, String reason, Double score, String modelVersion) {}
+    private record PreferenceProfile(Map<String, Double> genreProfile, Map<String, Double> tagProfile, Map<String, Double> actorProfile) {
+        public boolean hasData() { return !genreProfile.isEmpty() || !tagProfile.isEmpty() || !actorProfile.isEmpty(); }
+    }
+    private record DoramaScore(Dorama dorama, double score, String reason) {}
 }
